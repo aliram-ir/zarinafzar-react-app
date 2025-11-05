@@ -1,92 +1,82 @@
+// 📁 مسیر فایل: src/hooks/useApi.ts
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { toast } from 'react-toastify'
 import * as apiHelper from '../api/apiHelper'
+import type { ApiState } from '../types/apiState'
+import { getCache, setCache } from '../utils/localStorageCache' // ✳️ ایمپورت توابع کمکی کش
 
-/**
- * وضعیت داده‌ای که از API دریافت می‌کنیم
- */
-interface ApiState<T> {
-    data: T | null
-    isLoading: boolean
-    error: string | null
-}
-
-/**
- * پارامترهای تنظیمی قابل انتخاب برای useApi
- */
 interface UseApiOptions {
-    /** بعد از mount به صورت خودکار فراخوانی شود؟ (پیش‌فرض: true) */
     immediate?: boolean
-    /** بازخوانی خودکار هنگام focus مجدد صفحه (پیش‌فرض: true) */
     refetchOnWindowFocus?: boolean
-    /** تعداد دفعات retry در صورت خطا (پیش‌فرض: 1) */
-    retryCount?: number
+    cacheDurationMinutes?: number // ✳️ زمان انقضای کش
 }
 
-/**
- * قلاب اصلی برای مدیریت درخواست‌های API با Type Safety کامل
- */
-export function useApi<T>(
-    endpoint: string,
-    options: UseApiOptions = {}
-) {
+// 📌 هوک قدرتمند واکشی داده با قابلیت Cache و Offline-Friendly
+export function useApi<T>(endpoint: string, options: UseApiOptions = {}) {
     const {
         immediate = true,
         refetchOnWindowFocus = true,
-        retryCount = 1
+        cacheDurationMinutes = 5, // پیش‌فرض: ۵ دقیقه کش
     } = options
 
+    const cacheKey = `api-cache-${endpoint}` // ✳️ کلید کش منحصر به فرد
+
+    // ✳️ ۱. بارگذاری اولیه داده از کش (اگر وجود داشته باشد)
+    const initialData = getCache<T>(cacheKey, cacheDurationMinutes)
+
     const [state, setState] = useState<ApiState<T>>({
-        data: null,
-        isLoading: false,
-        error: null
+        // اگر داده در کش بود، آن را به عنوان داده اولیه قرار بده
+        data: initialData.data,
+        isLoading: initialData.data ? false : true, // اگر داده‌ای در کش نیست، در حالت Loading شروع کن
+        error: null,
     })
 
-    // ذخیره‌ی مقدار قبلی برای تشخیص refetch‌ها
-    const cacheRef = useRef<T | null>(null)
-    const retryRef = useRef(0)
+    const isFetchingRef = useRef(false) // برای جلوگیری از فراخوانی‌های همزمان
 
     const fetchData = useCallback(async () => {
-        setState(prev => ({ ...prev, isLoading: true, error: null }))
+        if (isFetchingRef.current) return
+        isFetchingRef.current = true
+
+        // 💡 اگر داده در کش موجود باشد، نیازی به نمایش لودینگ اولیه نیست
+        if (!state.data) {
+            setState(prev => ({ ...prev, isLoading: true, error: null }))
+        }
 
         try {
             const result = await apiHelper.getResult<T>(endpoint)
-            cacheRef.current = result
+
+            // ✳️ ۲. ذخیره داده‌ی موفق در کش
+            setCache(cacheKey, result)
+
+            // ✳️ ۳. به‌روزرسانی وضعیت با داده‌ی جدید
             setState({ data: result, isLoading: false, error: null })
         } catch (err: unknown) {
             let message = 'خطا در ارتباط با سرور'
+            if (err instanceof Error) message = err.message
+            else if (typeof err === 'string') message = err
 
-            if (err instanceof Error) {
-                message = err.message
-            } else if (typeof err === 'string') {
-                message = err
+            // ⚠️ اگر در حالت آفلاین هستیم و داده‌ای در کش داریم، فقط Toast خطا نمایش داده شود
+            if (state.data) {
+                toast.warning('⚠️ شبکه قطع است. داده‌های نمایش‌داده‌شده ممکن است قدیمی باشند.', { rtl: true })
+                setState(prev => ({ ...prev, isLoading: false, error: message }))
+            } else {
+                // اگر هیچ داده‌ای (نه کش و نه جدید) نداریم، خطا نمایش داده شود
+                toast.error(message, { rtl: true })
+                setState({ data: null, isLoading: false, error: message })
             }
-
-            toast.error(message)
-
-            if (retryRef.current < retryCount) {
-                retryRef.current++
-                setTimeout(fetchData, 1000) // retry بعد از ۱ ثانیه
-                return
-            }
-
-            setState(prev => ({ ...prev, isLoading: false, error: message }))
         } finally {
-            retryRef.current = 0
+            isFetchingRef.current = false
         }
-
-    }, [endpoint, retryCount])
+    }, [endpoint, cacheKey, state.data]) // وابستگی‌های به‌روزرسانی‌شده
 
     const refetch = useCallback(() => {
         fetchData()
     }, [fetchData])
 
-    // اجرای اولیه
     useEffect(() => {
         if (immediate) fetchData()
     }, [immediate, fetchData])
 
-    // بازخوانی هنگام فوکوس مجدد (مثل React Query)
     useEffect(() => {
         if (!refetchOnWindowFocus) return
         const handleFocus = () => refetch()
@@ -97,6 +87,6 @@ export function useApi<T>(
     return {
         ...state,
         refetch,
-        isEmpty: !state.isLoading && !state.data
+        isEmpty: !state.isLoading && !state.data,
     }
 }

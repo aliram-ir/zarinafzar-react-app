@@ -34,7 +34,7 @@ export default function AppRoutes() {
                 /> */}
 
                 <Route
-                    path="/users/list"
+                    path="/usersList"
                     element={
                         <Suspense fallback={<Loader />}>
                             <UsersList />
