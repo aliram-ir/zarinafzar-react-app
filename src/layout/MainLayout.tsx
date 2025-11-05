@@ -11,8 +11,8 @@ import {
     Tooltip,    // 🆕 برای نمایش توضیحات روی دکمه
     useTheme    // 🆕 برای دسترسی به شیء تم در صورت نیاز
 } from '@mui/material'
-import Brightness4Icon from '@mui/icons-material/Brightness4' // 🌙 آیکون تم تاریک
-import Brightness7Icon from '@mui/icons-material/Brightness7' // ☀️ آیکون تم روشن
+import Brightness4Icon from '@mui/icons-material/DarkMode' // 🌙 آیکون تم تاریک
+import Brightness7Icon from '@mui/icons-material/Sunny' // ☀️ آیکون تم روشن
 
 // 🪝 هوک حیاتی برای مدیریت وضعیت تم
 import { useThemeContext } from '@/hooks/useThemeMode'
@@ -27,8 +27,8 @@ export default function MainLayout() {
     const links = [
         { to: '/', label: 'خانه' },
         { to: '/usersList', label: 'کاربران' },
-        { to: '/products', label: 'محصولات' },
-        { to: '/settings', label: 'تنظیمات' },
+        { to: '/sendOtp', label: 'ثبت نام' },
+        { to: '/verifyOtp', label: 'تنظیمات' },
     ]
 
     return (

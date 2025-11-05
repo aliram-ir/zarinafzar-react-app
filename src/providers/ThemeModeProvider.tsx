@@ -1,29 +1,24 @@
-// 📁 مسیر فایل: src/providers/ThemeModeProvider.tsx
-// Provider اصلی برای تزریق تم MUI و ThemeModeContext به برنامه.
-
-import React from 'react'
+// 📁 src/providers/ThemeModeProvider.tsx
 import { ThemeProvider, CssBaseline } from '@mui/material'
-import { useThemeMode, ThemeModeContext } from '@/hooks/useThemeMode'
+import { ThemeModeContext, useThemeMode } from '@/hooks/useThemeMode'
+import type { ReactNode } from 'react'
 
+interface Props {
+    children: ReactNode
+}
 
 /**
- * 📌 کامپوننت ThemeModeProvider:
- * - استفاده از useThemeMode برای مدیریت وضعیت تم.
- * - فراهم کردن ThemeModeContext برای دسترسی به mode و toggleTheme در سراسر برنامه.
- * - استفاده از ThemeProvider MUI برای اعمال شیء تم (theme).
- * - استفاده از CssBaseline برای یکنواخت‌سازی CSS (Reset).
+ * 🌗 تامین‌کننده‌ی حالت تم با پشتیبانی از تغییر وضعیت Light/Dark.
+ * ⚙️ تمام زیرکامپوننت‌ها (از جمله صفحات OTP) به‌صورت خودکار تم، فونت و RTL را می‌بینند.
  */
-export const ThemeModeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-
-    // 🪝 استفاده از هوک مدیریت تم
-    const themeMode = useThemeMode()
+export function ThemeModeProvider({ children }: Props) {
+    const { mode, toggleTheme, theme } = useThemeMode()
 
     return (
-        // 💡 Context برای دسترسی به توابع مدیریت تم (مثل toggleTheme)
-        <ThemeModeContext.Provider value={themeMode}>
-            {/* 🎨 ThemeProvider برای اعمال شیء تم MUI */}
-            <ThemeProvider theme={themeMode.theme}>
-                {/* 🔄 CssBaseline برای ریست کردن CSS مرورگر و اعمال رنگ پس‌زمینه‌ی تم */}
+        <ThemeModeContext.Provider value={{ mode, toggleTheme, theme }}>
+            {/* 💡 ThemeProvider اصلی MUI */}
+            <ThemeProvider theme={theme}>
+                {/* 🧱 ریست و اعمال استایل پایه با فونت Vazirmatn */}
                 <CssBaseline />
                 {children}
             </ThemeProvider>

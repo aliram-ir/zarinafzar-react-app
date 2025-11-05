@@ -1,5 +1,18 @@
-import React, { Fragment } from 'react'
-import { Box, Typography, CircularProgress, Paper, Button } from '@mui/material'
+import React from 'react'
+import {
+    Box,
+    Typography,
+    CircularProgress,
+    Paper,
+    Button,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow
+} from '@mui/material'
+import RefreshIcon from '@mui/icons-material/Refresh'
 import { useApi } from '@/hooks/useApi'
 import type { UserDto } from '@/types/userDto'
 
@@ -22,34 +35,42 @@ const UsersList: React.FC = () => {
             {/* Header */}
             <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
                 <Typography variant="h5">لیست کاربران</Typography>
-                <Button variant="outlined" onClick={refetch}>بازخوانی 🔄</Button>
+                <Button variant="outlined" onClick={refetch} startIcon={<RefreshIcon />} />
             </Box>
 
             {/* نمایش وضعیت اولیه */}
             <StateView loading={isLoading} error={error} empty={isEmpty} />
 
-            {/* داده‌ها */}
+            {/* جدول داده‌ها */}
             {!isLoading && !error && !isEmpty && (
-                <Fragment>
-                    {data?.map(user => (
-                        <Paper
-                            key={user.id}
-                            sx={{
-                                p: 2,
-                                mb: 1,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                            }}
-                        >
-                            <Typography>
-                                {user.name} – {user.email}
-                            </Typography>
-                            {/* دکمه فرضی آینده برای عملیات (Edit/Delete) */}
-                            {/* <IconButton color="primary"><EditIcon /></IconButton> */}
-                        </Paper>
-                    ))}
-                </Fragment>
+                <Box sx={{ overflowX: 'auto' }}>
+                    <TableContainer component={Paper}>
+                        <Table>
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell>ID</TableCell>
+                                    <TableCell>نام کامل</TableCell>
+                                    <TableCell>ایمیل</TableCell>
+                                    <TableCell>کد ملی</TableCell>
+                                    <TableCell>شماره تلفن</TableCell>
+                                    <TableCell>رمز عبور</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {data?.map(user => (
+                                    <TableRow key={user.id}>
+                                        <TableCell>{user.id}</TableCell>
+                                        <TableCell>{user.fullName}</TableCell>
+                                        <TableCell>{user.email}</TableCell>
+                                        <TableCell>{user.nationalCode}</TableCell>
+                                        <TableCell>{user.phoneNumber}</TableCell>
+                                        <TableCell>{user.passwordHash}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                </Box>
             )}
         </Box>
     )

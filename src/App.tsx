@@ -1,20 +1,23 @@
-import { BrowserRouter } from 'react-router-dom'
-import AppRoutes from '@/routes/AppRoutes'
-import { ToastContainer } from 'react-toastify'
-import 'react-toastify/dist/ReactToastify.css'
-
-// 🆕 ایمپورت Provider دینامیک MUI 
-import { ThemeModeProvider } from '@/providers/ThemeModeProvider' // مطمئن شوید مسیر Alias درست است
+import { BrowserRouter } from 'react-router-dom';
+import AppRoutes from '@/routes/AppRoutes';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { ThemeModeProvider } from '@/providers/ThemeModeProvider';
 
 export default function App() {
   return (
-    // 1️⃣ جایگزینی تم ایستا با Provider دینامیک
     <ThemeModeProvider>
+      {/* تمام اپلیکیشن داخل ThemeModeProvider تا تم دینامیک اعمال شود */}
       <BrowserRouter>
         <AppRoutes />
       </BrowserRouter>
-      {/* 2️⃣ ToastContainer باید داخل ThemeProvider باشد تا تم را بگیرد */}
-      <ToastContainer rtl position="bottom-left" />
+
+      {/* ToastContainer داخل Provider باشد تا تم را بگیرد */}
+      <ToastContainer
+        rtl
+        position="bottom-left"
+        theme="colored" // رنگ‌بندی Toast بر اساس تم
+      />
     </ThemeModeProvider>
-  )
+  );
 }

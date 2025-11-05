@@ -1,4 +1,4 @@
-// 📁 مسیر فایل: src/api/apiService.ts (اصلاح شده برای رفع هشدار ESLint)
+// 📁 مسیر فایل: src/api/apiService.ts
 import axios from 'axios'
 import type { AxiosInstance, AxiosResponse, AxiosRequestConfig } from 'axios'
 import { toast } from 'react-toastify'
@@ -14,6 +14,39 @@ const api: AxiosInstance = axios.create({
 
 // ✅ جلوگیری از نمایش چندباره Toast قطع سرور
 let serverUnavailableToastShown = false
+
+// ----------------------------------------------------------------------------
+// 🧠 تابع کمکی مرکزی برای نرمال‌سازی پاسخ سرور
+// حالا از همین در Interceptor و apiHelper استفاده می‌کنیم تا منطق واحد باشد.
+// ----------------------------------------------------------------------------
+export function parseServerResponse<T>(
+    response: unknown
+): { isSuccess: boolean; message?: string; value?: T } {
+    if (typeof response !== 'object' || response === null) {
+        return { isSuccess: false, message: 'ارتباط با سرور برقرار نیست.', value: undefined }
+    }
+
+    const resp = response as Record<string, unknown>
+    const top = (resp.data ?? resp) as Record<string, unknown>
+    const nested = (top.data ?? null) as Record<string, unknown> | null
+
+    const result =
+        nested && typeof nested.isSuccess === 'boolean' ? nested : top
+
+    const value =
+        (result.value as T) ??
+        ((result.data as Record<string, unknown> | undefined)?.value as T) ??
+        undefined
+
+    return {
+        isSuccess: Boolean(result.isSuccess),
+        message:
+            (result.message as string | undefined) ??
+            (top.message as string | undefined) ??
+            'عملیات با خطا مواجه شد.',
+        value,
+    }
+}
 
 /**
  * ♻️ تابع Retry با Backoff نمایی
@@ -33,22 +66,21 @@ const retryRequest = async <T>(
             await new Promise<void>(resolve => setTimeout(resolve, delay))
         }
     }
-    throw new Error('Unreachable code') // خطای توسعه‌دهنده (Internal Dev Error)
+    throw new Error('Unreachable code')
 }
 
 /**
  * 🧠 رهگیر پاسخ‌ها
- * - کنترل خطای منطقی سرور
- * - مدیریت مجدد درخواست در صورت خطای شبکه
+ * - کنترل خطاهای منطقی سرور با parseServerResponse
+ * - Retry در خطای شبکه
  */
 api.interceptors.response.use(
     <T>(response: AxiosResponse<Result<T>>) => {
-        const result = response.data
+        const parsed = parseServerResponse<T>(response)
 
-        // خطاهای سمت سرور (مثلاً IsSuccess=false)
-        if (!result.isSuccess) {
-            toast.error(result.message ?? 'عملیات با خطا مواجه شد.', { rtl: true })
-            // 🛑 خطای منطقی سرور را به بالا منتقل می‌کنیم تا در هوک‌ها قابل مدیریت باشد
+        // اگر سرور Success=false برگرداند، Toast فارسی و Reject
+        if (!parsed.isSuccess) {
+            toast.error(parsed.message ?? 'عملیات با خطا مواجه شد.', { rtl: true })
             return Promise.reject(response)
         }
 
@@ -67,28 +99,23 @@ api.interceptors.response.use(
             axiosError.message?.includes('Network Error') ||
             !axiosError.response
 
-        // 🔁 در صورت خطای شبکه یا قطع سرور
         if (isNetworkError) {
             try {
-                // تلاش مجدد برای اجرای درخواست
                 const retried = await retryRequest(() =>
                     axios.request(axiosError.config as AxiosRequestConfig)
                 )
                 return retried
-            } catch { // ⬅️ اصلاح: حذف `retryFailedError` برای رفع هشدار لینت
-                // اگر تلاش مجدد شکست خورد، پیام فارسی را به کاربر نمایش می‌دهیم
+            } catch {
                 if (!serverUnavailableToastShown) {
                     toast.error('☁ سرور در دسترس نیست. لطفاً بعداً تلاش کنید.', { rtl: true })
                     serverUnavailableToastShown = true
                 }
-
-                // یک خطای جدید با پیام فارسی برای لایه‌های بالاتر می‌سازیم.
                 const persianNetworkError = new Error('خطای اتصال به شبکه.')
                 return Promise.reject(persianNetworkError)
             }
         }
 
-        // 🚨 سایر خطاهای HTTP (۴xx و ۵xx)
+        // سایر خطاهای HTTP
         const message =
             axiosError.response?.data?.message ?? 'خطای ناشناخته از سمت سرور.'
         toast.error(message, { rtl: true })
