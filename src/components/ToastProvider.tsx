@@ -1,12 +1,18 @@
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 
+// ✅ کامپوننت مرکزی برای Toastها در کل برنامه
 const ToastProvider = () => (
     <ToastContainer
-        position="top-left"
-        autoClose={3000}
+        position="top-center"
+        autoClose={4000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
         rtl
-        newestOnTop
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
         theme="colored"
     />
 )
