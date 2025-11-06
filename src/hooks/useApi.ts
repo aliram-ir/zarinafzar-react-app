@@ -1,4 +1,4 @@
-// 📁 مسیر: src/hooks/useApi.ts
+// 📁 src/hooks/useApi.ts
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { toast } from 'react-toastify'
 import * as apiHelper from '../api/apiHelper'
@@ -11,9 +11,6 @@ interface UseApiOptions {
     cacheDurationMinutes?: number
 }
 
-/**
- * 🔁 هوک واکشی عمومی با پشتیبانی کش، Toast و Type‑Safety
- */
 export function useApi<T>(endpoint: string, options: UseApiOptions = {}) {
     const {
         immediate = true,
@@ -21,7 +18,8 @@ export function useApi<T>(endpoint: string, options: UseApiOptions = {}) {
         cacheDurationMinutes = 5,
     } = options
 
-    const cacheKey = `api-cache-${endpoint}`
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint
+    const cacheKey = `api-cache-${cleanEndpoint}`
     const cachedData = getCache<T>(cacheKey, cacheDurationMinutes)
 
     const [state, setState] = useState<ApiState<T>>({
@@ -36,25 +34,24 @@ export function useApi<T>(endpoint: string, options: UseApiOptions = {}) {
         if (isFetchingRef.current) return
         isFetchingRef.current = true
 
-        if (!state.data) setState(prev => ({ ...prev, isLoading: true }))
-
+        setState(prev => ({ ...prev, isLoading: true }))
         try {
-            const result = await apiHelper.getResult<T>(endpoint)
+            const result = await apiHelper.getResult<T>(cleanEndpoint)
             setCache(cacheKey, result)
             setState({ data: result, isLoading: false, error: null })
         } catch (err) {
             const message =
                 err instanceof Error && err.message
                     ? err.message
-                    : 'خطایی در برقراری ارتباط رخ داد.'
+                    : 'خطای ناشناخته رخ داد.'
             if (/Network|ارتباط|سرور/i.test(message))
-                toast.error('سرور در دسترس نیست.', { rtl: true })
+                toast.error('اتصال به سرور برقرار نیست.', { rtl: true })
             else toast.error(message, { rtl: true })
             setState(prev => ({ ...prev, isLoading: false, error: message }))
         } finally {
             isFetchingRef.current = false
         }
-    }, [endpoint, cacheKey, state.data])
+    }, [cleanEndpoint, cacheKey])
 
     const refetch = useCallback(() => fetchData(), [fetchData])
 
@@ -69,7 +66,12 @@ export function useApi<T>(endpoint: string, options: UseApiOptions = {}) {
         return () => window.removeEventListener('focus', handleFocus)
     }, [refetchOnWindowFocus, refetch])
 
-    return { ...state, refetch, isEmpty: !state.isLoading && !state.data }
+    const isEmpty =
+        !state.isLoading &&
+        (!state.data ||
+            (Array.isArray(state.data) && state.data.length === 0))
+
+    return { ...state, refetch, isEmpty }
 }
 
 export default useApi

@@ -46,7 +46,7 @@ export default function VerifyOtp() {
         const interval = setInterval(() => {
             const remaining = session.expireAt - Date.now()
             if (remaining <= 0) {
-                toast.info('⏰ زمان کد به پایان رسید', { rtl: true })
+                toast.info('زمان کد به پایان رسید', { rtl: true })
                 clearOtpSession()
                 navigate('/send-otp')
             } else {

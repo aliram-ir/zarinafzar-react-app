@@ -19,7 +19,7 @@ export default function SendOtp() {
             onSuccess: res => {
                 if (res.success) {
                     setOtpSession(phone)
-                    toast.success('کد تأیید ارسال شد ✅', { rtl: true })
+                    toast.success('کد تأیید ارسال شد', { rtl: true })
                     navigate('/verify-otp')
                 } else {
                     toast.error(res.message ?? 'ارسال کد با خطا مواجه شد', { rtl: true })

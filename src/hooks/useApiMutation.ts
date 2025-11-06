@@ -10,7 +10,7 @@ interface MutationOptions<TOutput> {
     rollbackData?: TOutput | null
 }
 
-// ✅ Type Guard مخصص برای تشخیص تابع بودن optimisticData
+// ✅ Type Guard برای تشخیص تابع بودن optimisticData
 function isOptimisticFn<T>(
     value: T | ((prev: T | null) => T)
 ): value is (prev: T | null) => T {
@@ -18,7 +18,9 @@ function isOptimisticFn<T>(
 }
 
 /**
- * 🧠 هوک برای Mutation Type-Safe با کنترل Toast، optimistic UI و rollback
+ * 🧠 هوک مرکزی برای Mutation Type-Safe
+ * شامل: optimistic update، rollback و خطایابی دقیق
+ * ❌ دیگر Toast موفقیت سراسری تولید نمی‌کند.
  */
 export function useApiMutation<TInput, TOutput>(
     requestFn: (payload: TInput) => Promise<TOutput>,
@@ -43,6 +45,7 @@ export function useApiMutation<TInput, TOutput>(
             setState(prev => ({ ...prev, isLoading: true, error: null }))
             previousDataRef.current = state.data
 
+            // 🌀 optimistic UI
             if (options?.optimisticData) {
                 const optimisticValue = isOptimisticFn(options.optimisticData)
                     ? options.optimisticData(previousDataRef.current)
@@ -55,13 +58,13 @@ export function useApiMutation<TInput, TOutput>(
                 const result = await requestFn(payload)
                 setState({ isLoading: false, isSuccess: true, error: null, data: result })
 
-                toast.success('عملیات با موفقیت انجام شد ✅', { rtl: true })
+                // ⛔ دیگر هیچ Toast پیش‌فرض موفقیت اجرا نمی‌شود
                 options?.onSuccess?.(result)
             } catch (err: unknown) {
                 const fallback = options?.rollbackData ?? previousDataRef.current
                 if (fallback) setState(prev => ({ ...prev, data: fallback }))
 
-                // 🔍 استخراج پیام خطا (هوشمند و فارسی)
+                // 🧩 استخراج پیام خطا و نمایش آن
                 let message = 'خطایی در انجام عملیات رخ داد.'
                 if (err instanceof Error && err.message) message = err.message
 
@@ -70,7 +73,7 @@ export function useApiMutation<TInput, TOutput>(
                     message = axiosErr.response.data.message
 
                 if (/Network|ارتباط|سرور/i.test(message)) {
-                    message = 'امکان برقراری ارتباط با سرور وجود ندارد.'
+                    message = 'ارتباط با سرور برقرار نیست.'
                 }
 
                 toast.error(message, { rtl: true })
