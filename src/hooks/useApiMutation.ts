@@ -10,7 +10,7 @@ interface MutationOptions<TOutput> {
     rollbackData?: TOutput | null
 }
 
-// ✅ Type Guard برای تشخیص تابع بودن optimisticData
+/** تشخیص تابع بودن optimisticData */
 function isOptimisticFn<T>(
     value: T | ((prev: T | null) => T)
 ): value is (prev: T | null) => T {
@@ -18,11 +18,10 @@ function isOptimisticFn<T>(
 }
 
 /**
- * 🧠 هوک مرکزی برای Mutation Type-Safe
- * شامل: optimistic update، rollback و خطایابی دقیق
- * ❌ دیگر Toast موفقیت سراسری تولید نمی‌کند.
+ * ✅ نسخه نهایی هوک useApiMutation
+ * منطق موفقیت فقط اگر response.success === true
  */
-export function useApiMutation<TInput, TOutput>(
+export function useApiMutation<TInput, TOutput extends { success?: boolean; message?: string }>(
     requestFn: (payload: TInput) => Promise<TOutput>,
     options?: MutationOptions<TOutput>
 ) {
@@ -45,26 +44,35 @@ export function useApiMutation<TInput, TOutput>(
             setState(prev => ({ ...prev, isLoading: true, error: null }))
             previousDataRef.current = state.data
 
-            // 🌀 optimistic UI
             if (options?.optimisticData) {
                 const optimisticValue = isOptimisticFn(options.optimisticData)
                     ? options.optimisticData(previousDataRef.current)
                     : options.optimisticData
-
                 setState(prev => ({ ...prev, data: optimisticValue }))
             }
 
             try {
                 const result = await requestFn(payload)
-                setState({ isLoading: false, isSuccess: true, error: null, data: result })
 
-                // ⛔ دیگر هیچ Toast پیش‌فرض موفقیت اجرا نمی‌شود
+                // ⚠️ بررسی منطق موفقیت واقعی
+                if (typeof result === 'object' && 'success' in result && result.success === false) {
+                    const msg = result.message || 'عملیات با خطا مواجه شد.'
+                    throw new Error(msg)
+                }
+
+                // ✅ فقط در حالت موفقیت واقعی
+                setState({ isLoading: false, isSuccess: true, error: null, data: result })
                 options?.onSuccess?.(result)
+
+                // اگر خود تابع بالا Toast نده، پیش‌فرض نمایش داده می‌شه
+                if (result.message)
+                    toast.success(result.message, { rtl: true })
+                else
+                    toast.success('✅ عملیات با موفقیت انجام شد', { rtl: true })
             } catch (err: unknown) {
                 const fallback = options?.rollbackData ?? previousDataRef.current
                 if (fallback) setState(prev => ({ ...prev, data: fallback }))
 
-                // 🧩 استخراج پیام خطا و نمایش آن
                 let message = 'خطایی در انجام عملیات رخ داد.'
                 if (err instanceof Error && err.message) message = err.message
 
@@ -72,17 +80,11 @@ export function useApiMutation<TInput, TOutput>(
                 if (axiosErr.response?.data?.message)
                     message = axiosErr.response.data.message
 
-                if (/Network|ارتباط|سرور/i.test(message)) {
-                    message = 'ارتباط با سرور برقرار نیست.'
-                }
+                if (/Network|ارتباط|سرور/i.test(message))
+                    message = '❌ امکان برقراری ارتباط با سرور وجود ندارد.'
 
                 toast.error(message, { rtl: true })
-                setState(prev => ({
-                    ...prev,
-                    isLoading: false,
-                    isSuccess: false,
-                    error: message,
-                }))
+                setState(prev => ({ ...prev, isLoading: false, isSuccess: false, error: message }))
                 options?.onError?.(err)
             }
         },

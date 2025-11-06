@@ -4,13 +4,19 @@ import { useEffect, useState } from 'react'
 import { Box, Button, TextField, Typography } from '@mui/material'
 import { useApiMutation } from '@/hooks/useApiMutation'
 import { completeRegistration } from '@/api/services/authService'
-// 🎯 ایمپورت Typeهای صریح از فایل auth.ts
 import type { CompleteRegistrationRequest, CompleteRegistrationResponse } from '@/types/auth'
 import { getOtpSession, clearOtpSession } from '@/utils/otpSession'
 import { toast } from 'react-toastify'
 
+/**
+ * 🧩 صفحه‌ی تکمیل ثبت‌نام با کنترل نوع داده، اعتبارسنجی سمت کلاینت
+ * و مدیریت کامل پاسخ منطقی سرور (success=false).
+ */
 export default function CompleteRegistration() {
-    // ⚙️ تعریف وضعیت‌های فرم
+    const navigate = useNavigate()
+    const session = getOtpSession()
+
+    // 🎯 Stateهای مورد نیاز فرم
     const [firstName, setFirstName] = useState('')
     const [lastName, setLastName] = useState('')
     const [nationalCode, setNationalCode] = useState('')
@@ -18,41 +24,43 @@ export default function CompleteRegistration() {
     const [password, setPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
 
-    const navigate = useNavigate()
-    const session = getOtpSession()
-
-    // 🎯 فراخوانی API با هوک mutation Type-Safe
+    // 🚀 Mutation برای ثبت‌نام نهایی
     const { mutate, isLoading } = useApiMutation<CompleteRegistrationRequest, CompleteRegistrationResponse>(
         completeRegistration,
         {
             onSuccess: res => {
-                // 💡 مدیریت پاسخ موفقیت منطقی از سرور (کد 200 با IsSuccess: true/false)
+                // ✅ فقط اگر عملیات واقعاً موفق بود
                 if (res.success) {
-                    toast.success('ثبت‌نام با موفقیت انجام شد 🎉', { rtl: true })
+                    toast.success(res.message || 'ثبت‌نام با موفقیت انجام شد', { rtl: true })
                     clearOtpSession()
                     navigate('/')
                 } else {
-                    // نمایش خطای منطقی که در useApiMutation کنترل نشده است
-                    toast.error(res.message ?? 'ثبت‌نام ناموفق بود', { rtl: true })
+                    // ❌ پاسخ منطقی ناموفق (مثلاً ایمیل تکراری)
+                    toast.error(res.message || 'ثبت‌نام انجام نشد', { rtl: true })
                 }
             },
-            // 🐛 رفع خطای 'unknown' و حذف Toast تکراری
-            onError: (err) => {
-                // Toast خطا توسط هوک useApiMutation نمایش داده شده است.
-                const error = err as Error
-                console.error('خطا در تکمیل ثبت‌نام:', error.message)
+            onError: err => {
+                const msg = err instanceof Error ? err.message : 'خطا در ارتباط با سرور'
+                toast.error(msg, { rtl: true })
             },
         }
     )
 
-    // 🚦 بررسی سشن: اگر تأیید نشده باشد، هدایت به صفحه ارسال OTP
+    /* ---------------------------------------------------------------------- */
+    /* 🚦 بررسی سشن و جلوگیری از ورود غیرمجاز                               */
+    /* ---------------------------------------------------------------------- */
     useEffect(() => {
-        if (!session?.verified) navigate('/send-otp')
+        if (!session?.verified) {
+            navigate('/send-otp')
+        }
     }, [navigate, session?.verified])
 
-    // 🧩 اعتبارسنجی سمت کلاینت
+    /* ---------------------------------------------------------------------- */
+    /* 🧭 تابع اعتبارسنجی قبل از ارسال فرم                                  */
+    /* ---------------------------------------------------------------------- */
     const validateForm = (): boolean => {
-        if (!firstName.trim() || !lastName.trim() || !nationalCode.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
+        if (!firstName.trim() || !lastName.trim() || !nationalCode.trim() ||
+            !email.trim() || !password.trim() || !confirmPassword.trim()) {
             toast.error('تمامی فیلدها الزامی هستند', { rtl: true })
             return false
         }
@@ -68,11 +76,10 @@ export default function CompleteRegistration() {
         }
 
         if (password !== confirmPassword) {
-            toast.error('رمز عبور و تکرار آن یکسان نیستند', { rtl: true })
+            toast.error('رمز و تکرار آن باید یکسان باشند', { rtl: true })
             return false
         }
 
-        // اعتبارسنجی ساده ایمیل
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
             toast.error('فرمت ایمیل معتبر نیست', { rtl: true })
             return false
@@ -81,30 +88,25 @@ export default function CompleteRegistration() {
         return true
     }
 
-    // 🚀 ارسال فرم
+    /* ---------------------------------------------------------------------- */
+    /* 📤 ارسال فرم                                                          */
+    /* ---------------------------------------------------------------------- */
     const handleSubmit = () => {
         if (!session?.phone) {
-            toast.error('سشن معتبر یافت نشد', { rtl: true })
+            toast.error('سشن معتبر یافت نشد یا به پایان رسیده', { rtl: true })
             navigate('/send-otp')
             return
         }
 
         if (!validateForm()) return
 
-        // 🎯 ایجاد Payload Type-Safe با تطابق دقیق با DTO بک‌اند C#
         const payload: CompleteRegistrationRequest = {
             phoneNumber: session.phone,
-
-            // 💡 فیلدهایی که بک‌اند انتظار دارد
             firstName: firstName.trim(),
             lastName: lastName.trim(),
             confirmPassword: confirmPassword.trim(),
-
-            // 💡 فیلدهای فنی که بک‌اند انتظار دارد، اما فرانت‌اند تنظیم می‌کند
-            createdAt: new Date().toISOString(), // ارسال تاریخ جاری به فرمت ISO 8601
-            roleId: null, // Guid? در C#، ارسال null
-
-            // 💡 سایر فیلدها
+            createdAt: new Date().toISOString(),
+            roleId: '00000000-0000-0000-0000-000000000000',
             nationalCode: nationalCode.trim(),
             email: email.trim(),
             password: password.trim(),
@@ -113,51 +115,81 @@ export default function CompleteRegistration() {
         mutate(payload)
     }
 
-    // 🛑 جلوگیری از رندرینگ قبل از useEffect در صورت نبود سشن
+    // 🛑 جلوگیری از رندر در صورت نبود سشن یا تأیید OTP
     if (!session?.verified) return null
 
-    // 🎨 رابط کاربری
+    /* ---------------------------------------------------------------------- */
+    /* 🎨 UI فرم تکمیل ثبت‌نام                                               */
+    /* ---------------------------------------------------------------------- */
     return (
-        <Box sx={{ p: 4, maxWidth: 420, mx: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Box
+            sx={{
+                p: 4,
+                maxWidth: 420,
+                mx: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2,
+            }}
+        >
             <Typography variant="h6" textAlign="center" sx={{ mb: 2 }}>
                 تکمیل ثبت‌نام
             </Typography>
 
-            <TextField label="شماره موبایل" value={session.phone} fullWidth margin="normal" disabled />
-            <TextField label="نام" value={firstName} onChange={e => setFirstName(e.target.value)} fullWidth margin="normal" slotProps={{
-                input: {
-                    dir: 'rtl'
-                }
-            }} />
-            <TextField label="نام خانوادگی" value={lastName} onChange={e => setLastName(e.target.value)} fullWidth margin="normal" slotProps={{
-                input: {
-                    dir: 'rtl'
-                }
-            }} />
-
+            {/* شماره موبایل فقط خواندنی */}
             <TextField
-                label="کد ملی"
-                value={nationalCode}
-                onChange={e => setNationalCode(e.target.value)}
+                label="شماره موبایل"
+                value={session.phone}
+                fullWidth
+                disabled
+                margin="normal"
+                inputProps={{ dir: 'ltr' }}
+            />
+
+            {/* نام و نام خانوادگی */}
+            <TextField
+                label="نام"
+                value={firstName}
+                onChange={e => setFirstName(e.target.value)}
                 fullWidth
                 margin="normal"
-                inputProps={{ inputMode: 'numeric', maxLength: 10 }}
+                inputProps={{ dir: 'rtl' }}
             />
 
             <TextField
+                label="نام خانوادگی"
+                value={lastName}
+                onChange={e => setLastName(e.target.value)}
+                fullWidth
+                margin="normal"
+                inputProps={{ dir: 'rtl' }}
+            />
+
+            {/* کد ملی */}
+            <TextField
+                label="کد ملی"
+                value={nationalCode}
+                onChange={e => setNationalCode(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                fullWidth
+                margin="normal"
+                inputProps={{
+                    dir: 'ltr',
+                    inputMode: 'numeric',
+                    maxLength: 10,
+                }}
+            />
+
+            {/* ایمیل */}
+            <TextField
                 label="ایمیل"
-                variant="outlined"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 fullWidth
                 margin="normal"
-                slotProps={{
-                    input: {
-                        dir: 'ltr'
-                    }
-                }}
+                inputProps={{ dir: 'ltr' }}
             />
 
+            {/* رمز عبور */}
             <TextField
                 label="رمز عبور"
                 type="password"
@@ -165,6 +197,7 @@ export default function CompleteRegistration() {
                 onChange={e => setPassword(e.target.value)}
                 fullWidth
                 margin="normal"
+                inputProps={{ dir: 'ltr' }}
             />
 
             <TextField
@@ -174,15 +207,17 @@ export default function CompleteRegistration() {
                 onChange={e => setConfirmPassword(e.target.value)}
                 fullWidth
                 margin="normal"
+                inputProps={{ dir: 'ltr' }}
             />
 
+            {/* دکمه ثبت‌نام */}
             <Button
                 fullWidth
                 variant="contained"
                 color="primary"
-                sx={{ mt: 2 }}
-                disabled={isLoading}
                 onClick={handleSubmit}
+                disabled={isLoading}
+                sx={{ mt: 2 }}
             >
                 {isLoading ? 'در حال ثبت...' : 'ثبت‌نام نهایی'}
             </Button>

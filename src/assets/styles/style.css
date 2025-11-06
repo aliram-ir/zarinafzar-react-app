@@ -1,3 +1,31 @@
+:root {
+  /* 🎨 رنگ‌های اصلی پروژه */
+  --color-primary: #d2c019;
+  /* رنگ اصلی (MUI primary) */
+  --color-primary-light: #d2c019;
+  --color-primary-dark: #004ba0;
+
+  --color-secondary: #9c27b0;
+  /* رنگ ثانویه (MUI secondary) */
+  --color-secondary-light: #d05ce3;
+  --color-secondary-dark: #6a0080;
+
+  --color-error: #d32f2f;
+  /* رنگ خطا */
+  --color-warning: #ed6c02;
+  /* رنگ هشدار */
+  --color-success: #2e7d32;
+  /* رنگ موفقیت */
+  --color-info: #0288d1;
+  /* رنگ اطلاعات */
+
+  /* رنگ پس‌زمینه و متن */
+  --color-background: #ffffff;
+  --color-surface: #f5f5f5;
+  --color-text-primary: #212121;
+  --color-text-secondary: #757575;
+}
+
 body {
   direction: rtl;
   font-family: 'Vazirmatn', Tahoma, sans-serif;
@@ -11,3 +39,80 @@ body {
   direction: rtl;
   text-align: right;
 }
+
+/* ===== RTL TextField ===== */
+.rtl-textfield {
+  direction: rtl;
+  /* کل TextField راست‌چین */
+}
+
+/* راست‌چین کردن input و adornment */
+.rtl-textfield .MuiInputBase-root {
+  direction: rtl;
+}
+
+/* متن داخل input راست‌چین */
+.rtl-textfield .MuiInputBase-input {
+  text-align: right;
+}
+
+/* راست‌چین کردن label در حالت معمولی */
+.rtl-textfield .MuiInputLabel-root {
+  right: 1.5rem;
+  left: auto;
+  text-align: right;
+}
+
+/* راست‌چین کردن label هنگام shrink (focus یا پر شدن input) */
+.rtl-textfield .MuiInputLabel-root.MuiInputLabel-shrink {
+  right: 1.7rem !important;
+  left: auto !important;
+  text-align: right;
+  transform-origin: top right;
+}
+
+/* راست‌چین کردن border فیلد و گرد کردن آن */
+.rtl-textfield .MuiOutlinedInput-notchedOutline {
+  text-align: right;
+}
+
+/* label در حالت معمولی */
+.MuiOutlinedInput-root {
+  border-radius: 15px !important;
+}
+
+/* ===== دکمه‌های MUI راست‌به‌چپ و گرد ===== */
+.MuiButton-root {
+  background-color: var(--color-primary);
+  border-radius: 15px !important;
+  padding: 0.75rem !important;
+  /* گوشه‌های گرد */
+  direction: rtl;
+  /* راست‌به‌چپ */
+  text-transform: none;
+  /* متن بدون بزرگ‌نویسی */
+}
+
+/* اختیاری: تغییر فاصله متن داخل دکمه */
+.MuiButton-root .MuiButton-label {
+  text-align: center;
+}
+
+/* .MuiButton-root:hover {
+  background-color: var(--color-primary-dark);
+} */
+
+/* TextField راست‌به‌چپ و گرد */
+/* .MuiOutlinedInput-root {
+  border-radius: 15px;
+  direction: rtl;
+} */
+
+/* .MuiOutlinedInput-notchedOutline {
+  border-radius: 15px;
+  border-color: var(--color-primary);
+} */
+
+/* .MuiInputBase-input {
+  text-align: right;
+} */

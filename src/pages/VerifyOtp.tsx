@@ -1,21 +1,16 @@
+// 📁 مسیر: src/pages/VerifyOtp.tsx
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Box, Button, TextField, Typography } from '@mui/material'
 import { toast } from 'react-toastify'
-import {
-    verifyOtp,
-    type VerifyOtpRequest,
-    type VerifyOtpResponse,
-} from '@/api/services/authService'
-import {
-    getOtpSession,
-    setOtpVerified,
-    clearOtpSession,
-} from '@/utils/otpSession'
+import { verifyOtp } from '@/api/services/authService'
+import type { VerifyOtpRequest, VerifyOtpResponse } from '@/types/auth'
+import { getOtpSession, setOtpVerified, clearOtpSession } from '@/utils/otpSession'
 import { useApiMutation } from '@/hooks/useApiMutation'
 
 /**
- * 💡 صفحه تأیید OTP با کنترل زمان و Toast کاملاً ایمن
+ * 💡 صفحه‌ی تأیید شماره موبایل (OTP)
+ * کنترل تایمر، Toast و هدایت امن به صفحه ثبت‌نام نهایی
  */
 export default function VerifyOtp() {
     const [otpCode, setOtpCode] = useState('')
@@ -23,12 +18,12 @@ export default function VerifyOtp() {
     const navigate = useNavigate()
     const session = getOtpSession()
 
+    // 🚀 فراخوانی API تأیید OTP با Typeهای نوع‌دار
     const { mutate, isLoading } = useApiMutation<VerifyOtpRequest, VerifyOtpResponse>(verifyOtp, {
         onSuccess: res => {
-            // ✅ پاسخ منطقی از سرور (ساختار ApiResponse جدید)
             if (res.success && res.data === true) {
                 setOtpVerified()
-                toast.success('کد تأیید با موفقیت ثبت شد', { rtl: true })
+                toast.success('✅ کد با موفقیت تأیید شد', { rtl: true })
                 navigate('/complete-registration')
             } else {
                 toast.error(res.message ?? 'کد وارد شده صحیح نیست', { rtl: true })
@@ -52,26 +47,30 @@ export default function VerifyOtp() {
             return
         }
 
+        // اگر سشن منقضی شده و هنوز تأیید نشده است
         if (session.isExpired) {
-            toast.info('⏰ زمان کد منقضی شده است.', { rtl: true })
+            toast.info('⏰ زمان وارد کردن کد منقضی شده است.', { rtl: true })
             clearOtpSession()
             navigate('/send-otp')
             return
         }
 
-        const interval = setInterval(() => {
-            const remaining = session.expireAt - Date.now()
-            if (remaining <= 0) {
-                toast.info('زمان کد به پایان رسید', { rtl: true })
-                clearOtpSession()
-                navigate('/send-otp')
-                clearInterval(interval)
-            } else {
-                setSeconds(Math.floor(remaining / 1000))
-            }
-        }, 1000)
+        // ⏲️ محاسبه باقیمانده‌ی زمان فقط زمانی که تأیید نشده است
+        if (!session.verified) {
+            const interval = setInterval(() => {
+                const remaining = session.expireAt - Date.now()
+                if (remaining <= 0) {
+                    toast.info('زمان کد به پایان رسید ⏰', { rtl: true })
+                    clearOtpSession()
+                    navigate('/send-otp')
+                    clearInterval(interval)
+                } else {
+                    setSeconds(Math.floor(remaining / 1000))
+                }
+            }, 1000)
 
-        return () => clearInterval(interval)
+            return () => clearInterval(interval)
+        }
     }, [navigate, session])
 
     /* ---------------------------------------------------------------------- */
@@ -79,12 +78,12 @@ export default function VerifyOtp() {
     /* ---------------------------------------------------------------------- */
     const handleSubmit = () => {
         if (!/^\d{4,6}$/.test(otpCode)) {
-            toast.error('کد باید عددی بین ۴ تا ۶ رقم باشد', { rtl: true })
+            toast.error('کد باید عددی ۴ تا ۶ رقمی باشد', { rtl: true })
             return
         }
 
         if (!session) {
-            toast.error('سشن نامعتبر است', { rtl: true })
+            toast.error('❌ سشن نامعتبر است', { rtl: true })
             navigate('/send-otp')
             return
         }
@@ -92,10 +91,11 @@ export default function VerifyOtp() {
         mutate({ phoneNumber: session.phone, otpCode })
     }
 
+    // 🧩 در صورت نبود سشن، از رندر صفحه جلوگیری کن
     if (!session) return null
 
     /* ---------------------------------------------------------------------- */
-    /* 🎨 UI فرم OTP                                                        */
+    /* 🎨 UI صفحه تأیید OTP                                                 */
     /* ---------------------------------------------------------------------- */
     return (
         <Box
@@ -117,27 +117,37 @@ export default function VerifyOtp() {
                 value={otpCode}
                 onChange={e => setOtpCode(e.target.value)}
                 fullWidth
-                inputProps={{
-                    dir: 'ltr',
-                    inputMode: 'numeric',
-                    pattern: '[0-9]*',
-                    maxLength: 6,
+                slotProps={{
+                    input: {
+                        dir: 'ltr',
+                        inputProps: {
+                            inputMode: 'numeric',
+                            maxLength: 6,
+                        },
+                    },
                 }}
             />
 
             <Button
-                variant="contained"
                 fullWidth
+                variant="contained"
+                color="primary"
                 onClick={handleSubmit}
                 disabled={isLoading}
             >
                 {isLoading ? 'در حال بررسی...' : 'تأیید'}
             </Button>
 
-            <Typography align="center" color="text.secondary">
-                اعتبار کد: {Math.floor(seconds / 60)}:
-                {('0' + (seconds % 60)).slice(-2)}
-            </Typography>
+            {!session.verified && (
+                <Typography
+                    align="center"
+                    color="text.secondary"
+                    sx={{ mt: 1 }}
+                >
+                    ⏳ اعتبار کد: {Math.floor(seconds / 60)}:
+                    {('0' + (seconds % 60)).slice(-2)}
+                </Typography>
+            )}
         </Box>
     )
 }

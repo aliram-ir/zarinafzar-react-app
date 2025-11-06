@@ -13,13 +13,14 @@ export interface OtpSession {
  * ⏳ ذخیره‌ی اطلاعات OTP در localStorage
  */
 export function setOtpSession(phone: string): void {
-    const expireAt = Date.now() + 3 * 60 * 1000 // 🔥 ۳ دقیقه بعد
+    const expireAt = Date.now() + 3 * 60 * 1000 // ۳ دقیقه بعد
     const session: OtpSession = { phone, expireAt, verified: false }
     localStorage.setItem('otpSession', JSON.stringify(session))
 }
 
 /**
  * 📥 دریافت سشن OTP از localStorage
+ * ⚙️ نکته: اگر OTP تایید شده باشد (verified=true)، انقضا نادیده گرفته می‌شود.
  */
 export function getOtpSession(): (OtpSession & { isExpired: boolean }) | null {
     const data = localStorage.getItem('otpSession')
@@ -27,8 +28,9 @@ export function getOtpSession(): (OtpSession & { isExpired: boolean }) | null {
 
     try {
         const session: OtpSession = JSON.parse(data)
-        const now = Date.now()
-        const isExpired = now > session.expireAt
+
+        // ⚠️ اگر OTP تایید شده باشد، expireAt نادیده بگیر
+        const isExpired = session.verified ? false : Date.now() > session.expireAt
 
         return { ...session, isExpired }
     } catch {
