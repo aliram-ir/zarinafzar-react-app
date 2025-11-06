@@ -11,6 +11,9 @@ interface UseApiOptions {
     cacheDurationMinutes?: number
 }
 
+/**
+ * 🔁 هوک عمومی Type‑Safe برای فراخوانی API با پشتیبانی از کش و Toast
+ */
 export function useApi<T>(endpoint: string, options: UseApiOptions = {}) {
     const {
         immediate = true,
@@ -18,23 +21,28 @@ export function useApi<T>(endpoint: string, options: UseApiOptions = {}) {
         cacheDurationMinutes = 5,
     } = options
 
+    // 🧹 پاک‌سازی مسیر برای جلوگیری از دوبل‌شدن '/'
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint
     const cacheKey = `api-cache-${cleanEndpoint}`
-    const cachedData = getCache<T>(cacheKey, cacheDurationMinutes)
+    const cached = getCache<T>(cacheKey, cacheDurationMinutes)
 
     const [state, setState] = useState<ApiState<T>>({
-        data: cachedData.data,
-        isLoading: !cachedData.data,
+        data: cached.data,
+        isLoading: !cached.data,
         error: null,
     })
 
     const isFetchingRef = useRef(false)
 
+    /* ---------------------------------------------------------------------- */
+    /* 🧠 تابع fetch اصلی                                                    */
+    /* ---------------------------------------------------------------------- */
     const fetchData = useCallback(async () => {
         if (isFetchingRef.current) return
         isFetchingRef.current = true
 
         setState(prev => ({ ...prev, isLoading: true }))
+
         try {
             const result = await apiHelper.getResult<T>(cleanEndpoint)
             setCache(cacheKey, result)
@@ -43,22 +51,32 @@ export function useApi<T>(endpoint: string, options: UseApiOptions = {}) {
             const message =
                 err instanceof Error && err.message
                     ? err.message
-                    : 'خطای ناشناخته رخ داد.'
+                    : 'خطای ناشناخته هنگام دریافت اطلاعات.'
             if (/Network|ارتباط|سرور/i.test(message))
-                toast.error('اتصال به سرور برقرار نیست.', { rtl: true })
+                toast.error('☁ سرور در دسترس نیست.', { rtl: true })
             else toast.error(message, { rtl: true })
-            setState(prev => ({ ...prev, isLoading: false, error: message }))
+
+            setState(prev => ({ ...prev, error: message, isLoading: false }))
         } finally {
             isFetchingRef.current = false
         }
     }, [cleanEndpoint, cacheKey])
 
+    /* ---------------------------------------------------------------------- */
+    /* ♻️ رفرش دستی                                                         */
+    /* ---------------------------------------------------------------------- */
     const refetch = useCallback(() => fetchData(), [fetchData])
 
+    /* ---------------------------------------------------------------------- */
+    /* 🚀 فراخوانی اولیه                                                    */
+    /* ---------------------------------------------------------------------- */
     useEffect(() => {
         if (immediate) fetchData()
     }, [immediate, fetchData])
 
+    /* ---------------------------------------------------------------------- */
+    /* 👁️ واکشی مجدد هنگام بازگشت فوکوس به窗口                              */
+    /* ---------------------------------------------------------------------- */
     useEffect(() => {
         if (!refetchOnWindowFocus) return
         const handleFocus = () => refetch()
@@ -66,10 +84,13 @@ export function useApi<T>(endpoint: string, options: UseApiOptions = {}) {
         return () => window.removeEventListener('focus', handleFocus)
     }, [refetchOnWindowFocus, refetch])
 
+    /* ---------------------------------------------------------------------- */
+    /* 📊 تشخیص وضعیت خالی بودن داده                                        */
+    /* ---------------------------------------------------------------------- */
     const isEmpty =
         !state.isLoading &&
-        (!state.data ||
-            (Array.isArray(state.data) && state.data.length === 0))
+        !state.error &&
+        (Array.isArray(state.data) ? state.data.length === 0 : !state.data)
 
     return { ...state, refetch, isEmpty }
 }

@@ -1,3 +1,4 @@
+// 📁 مسیر: src/api/apiService.ts
 import axios, {
     type AxiosInstance,
     type AxiosRequestConfig,
@@ -5,7 +6,7 @@ import axios, {
 } from 'axios'
 
 /* -------------------------------------------------------------------------- */
-/* 📦 مدل یکپارچه پاسخ سرور                                                   */
+/* 📦 مدل واحد پاسخ سرور                                                     */
 /* -------------------------------------------------------------------------- */
 export interface ApiResponse<T> {
     success: boolean
@@ -24,7 +25,7 @@ const api: AxiosInstance = axios.create({
 })
 
 /* -------------------------------------------------------------------------- */
-/* 🧠 Parse تمام ساختارهای ممکن پاسخ سرور (Type‑Safe و مقاوم در برابر تو در تو) */
+/* 🧠 Parse امن و Type‑Safe برای پوشش تمام ساختارهای ممکن پاسخ سرور          */
 /* -------------------------------------------------------------------------- */
 export function parseServerResponse<T>(response: unknown): ApiResponse<T> {
     if (!response || typeof response !== 'object') {
@@ -40,6 +41,7 @@ export function parseServerResponse<T>(response: unknown): ApiResponse<T> {
     const r3 = (r2.data ?? r2.value ?? r2.list ?? null) as Record<string, unknown> | null
     const r4 = (r3?.data ?? r3?.value ?? r3?.list ?? null) as Record<string, unknown> | null
 
+    // ✅ پوشش کامل تمام حالت‌ها (IsSuccess / isSuccess / success)
     const success = Boolean(
         r4?.success ??
         r3?.success ??
@@ -47,56 +49,71 @@ export function parseServerResponse<T>(response: unknown): ApiResponse<T> {
         r1.success ??
         r4?.isSuccess ??
         r3?.isSuccess ??
-        r2?.isSuccess
+        r2?.isSuccess ??
+        r1.isSuccess ??
+        r4?.IsSuccess ??
+        r3?.IsSuccess ??
+        r2?.IsSuccess ??
+        r1.IsSuccess
     )
 
+    // ✅ پیام نهایی
     const message =
         (r4?.message as string | undefined) ??
         (r3?.message as string | undefined) ??
         (r2?.message as string | undefined) ??
         (r1?.message as string | undefined) ??
+        (r4?.Message as string | undefined) ??
+        (r3?.Message as string | undefined) ??
+        (r2?.Message as string | undefined) ??
+        (r1?.Message as string | undefined) ??
         (success ? 'عملیات با موفقیت انجام شد.' : 'عملیات با خطا مواجه شد.')
 
-    // 🎯 داده نهایی
+    // ✅ استخراج داده — شامل boolean هم
     const candidates = [
         r4?.value,
         r3?.value,
         r2?.value,
+        r4?.Value,
+        r3?.Value,
+        r2?.Value,
         r4?.data,
         r3?.data,
         r2?.data,
+        r4?.Data,
+        r3?.Data,
+        r2?.Data,
         r4?.list,
         r3?.list,
         r2?.list,
+        r1.data,
+        r1.value,
+        r1.Value,
     ]
 
-    let dataCandidate = candidates.find(
-        x => Array.isArray(x) || (x && typeof x === 'object')
-    ) as T
-
-    if (!dataCandidate)
-        dataCandidate = (r4 ?? r3 ?? r2 ?? r1).value as T
+    const dataCandidate = candidates.find(x => x !== undefined && x !== null) as T | undefined
 
     return {
         success,
         message,
-        data: (dataCandidate ??
-            (Array.isArray(dataCandidate) ? ([] as T) : undefined)) as T,
+        data: (dataCandidate ?? (undefined as T)) as T,
         details:
             (r4?.details as string | null) ??
             (r3?.details as string | null) ??
             (r2?.details as string | null) ??
+            (r1?.details as string | null) ??
             null,
         traceId:
             (r4?.traceId as string | null) ??
             (r3?.traceId as string | null) ??
             (r2?.traceId as string | null) ??
+            (r1?.traceId as string | null) ??
             null,
     }
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🔁 تابع Retry خودکار با Backoff نمایی (برای خطاهای واقعی شبکه)            */
+/* 🔁 Retry خودکار با Backoff نمایی برای قطع شبکه                             */
 /* -------------------------------------------------------------------------- */
 async function retryRequest<T>(
     requestFn: () => Promise<AxiosResponse<T>>,
@@ -119,18 +136,17 @@ async function retryRequest<T>(
 /* 🧱 Interceptor پاسخ‌ها                                                     */
 /* -------------------------------------------------------------------------- */
 api.interceptors.response.use(
-    // ✅ مسیر موفق یا پاسخ منطقی
+    // ✅ تمام پاسخ‌ها (حتی با کد 400 / 422) به‌صورت Resolve بازگردانده می‌شوند
     <T>(response: AxiosResponse<ApiResponse<T>>) => {
         const parsed = parseServerResponse<T>(response.data)
-
-        const newResponse: AxiosResponse<ApiResponse<T>> = {
+        const typedResponse: AxiosResponse<ApiResponse<T>> = {
             ...response,
             data: parsed,
         }
-        return newResponse
+        return typedResponse
     },
 
-    // ⚠️ مسیر خطاها (فقط خطای واقعی شبکه ریجکت می‌شود)
+    // ⚠️ فقط خطاهای واقعی شبکه Reject می‌شوند
     async (error: unknown) => {
         const err = error as {
             code?: string
@@ -141,40 +157,38 @@ api.interceptors.response.use(
 
         const isNetworkError =
             err.code === 'ERR_NETWORK' ||
-            !err.response || // سرور پاسخی نداده (timeout, connection refused)
+            !err.response ||
             err.message?.includes('Network Error')
 
-        // ⚙️ در صورت قطع شبکه → Retry یا نمایش خطای ارتباطی
+        // 🌐 در صورت خطای شبکه، تلاش مجدد انجام می‌شود
         if (isNetworkError) {
             try {
                 return await retryRequest(() =>
                     axios.request(err.config as AxiosRequestConfig)
                 )
             } catch {
-                return Promise.reject(new Error('☁ خطا در ارتباط با سرور'))
+                return Promise.reject(new Error('☁ سرور در دسترس نیست.'))
             }
         }
 
-        // ✅ چون سرور پاسخی داده (مثلاً 400, 422, 500) → پاسخ را resolve کن
-        const response = err.response as AxiosResponse | undefined
-        if (response) {
-            const parsed = parseServerResponse(response.data)
-            const newResponse: AxiosResponse<ApiResponse<unknown>> = {
-                ...response,
+        // ✅ برای خطای منطقی (HTTP 400/422/500) resolve کنیم
+        if (err.response) {
+            const parsed = parseServerResponse(err.response.data)
+            const adaptedResponse: AxiosResponse<ApiResponse<unknown>> = {
+                ...err.response,
                 data: parsed,
             }
-            return Promise.resolve(newResponse)
+            return Promise.resolve(adaptedResponse)
         }
 
-        // 🚫 سایر خطاهای غیرقابل‌تشخیص
         const msg =
             (err.message && err.message.trim()) ||
-            'خطای ناشناخته هنگام برقراری ارتباط با سرور.'
+            'خطای ناشناخته هنگام ارتباط با سرور.'
         return Promise.reject(new Error(msg))
     }
 )
 
 /* -------------------------------------------------------------------------- */
-/* 🚀 خروجی نهایی کلاینت API                                                 */
+/* 🚀 خروجی نهایی کلاینت API                                                  */
 /* -------------------------------------------------------------------------- */
 export default api
