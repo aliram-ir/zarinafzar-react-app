@@ -10,6 +10,16 @@ interface MutationOptions<TOutput> {
     rollbackData?: TOutput | null
 }
 
+// ✅ Type Guard مخصص برای تشخیص تابع بودن optimisticData
+function isOptimisticFn<T>(
+    value: T | ((prev: T | null) => T)
+): value is (prev: T | null) => T {
+    return typeof value === 'function'
+}
+
+/**
+ * 🧠 هوک برای Mutation Type-Safe با کنترل Toast، optimistic UI و rollback
+ */
 export function useApiMutation<TInput, TOutput>(
     requestFn: (payload: TInput) => Promise<TOutput>,
     options?: MutationOptions<TOutput>
@@ -34,12 +44,10 @@ export function useApiMutation<TInput, TOutput>(
             previousDataRef.current = state.data
 
             if (options?.optimisticData) {
-                const optimisticValue =
-                    typeof options.optimisticData === 'function'
-                        ? (options.optimisticData as (prev: TOutput | null) => TOutput)(
-                            previousDataRef.current
-                        )
-                        : options.optimisticData
+                const optimisticValue = isOptimisticFn(options.optimisticData)
+                    ? options.optimisticData(previousDataRef.current)
+                    : options.optimisticData
+
                 setState(prev => ({ ...prev, data: optimisticValue }))
             }
 
@@ -47,14 +55,13 @@ export function useApiMutation<TInput, TOutput>(
                 const result = await requestFn(payload)
                 setState({ isLoading: false, isSuccess: true, error: null, data: result })
 
-                // ✅ فقط در موفقیت Toast موفقیت عمومی
                 toast.success('عملیات با موفقیت انجام شد ✅', { rtl: true })
                 options?.onSuccess?.(result)
             } catch (err: unknown) {
                 const fallback = options?.rollbackData ?? previousDataRef.current
                 if (fallback) setState(prev => ({ ...prev, data: fallback }))
 
-                // 🔍 استخراج پیام خطا
+                // 🔍 استخراج پیام خطا (هوشمند و فارسی)
                 let message = 'خطایی در انجام عملیات رخ داد.'
                 if (err instanceof Error && err.message) message = err.message
 

@@ -13,8 +13,10 @@ const ToastProvider = () => (
         pauseOnFocusLoss
         draggable
         pauseOnHover
-        theme="colored"
+        // theme="colored"
+        theme="default"
     />
 )
 
 export default ToastProvider
+

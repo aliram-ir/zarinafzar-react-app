@@ -6,6 +6,7 @@ import { toast } from 'react-toastify'
 import { useApiMutation } from '@/hooks/useApiMutation'
 import { sendOtp, type SendOtpRequest } from '@/api/services/authService'
 import { getOtpSession, setOtpSession } from '@/utils/otpSession'
+import { toastSoftWarn } from "@/components/toast";
 
 export default function SendOtp() {
     const [phone, setPhone] = useState('')
@@ -43,7 +44,7 @@ export default function SendOtp() {
     // ✅ اعتبارسنجی و ارسال فرم
     const handleSubmit = () => {
         if (!/^09\d{9}$/.test(phone)) {
-            toast.warning('شماره موبایل معتبر نیست', { rtl: true })
+            toastSoftWarn('شماره موبایل معتبر نیست')
             return
         }
         mutate({ phoneNumber: phone })

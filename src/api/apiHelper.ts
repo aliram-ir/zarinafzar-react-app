@@ -1,63 +1,38 @@
-// 📁 مسیر فایل: src/api/apiHelper.ts
+// 📁 src/api/apiHelper.ts
 import api, { parseServerResponse } from './apiService'
-import type { Result } from '../types/result'
+import type { ApiResponse } from './apiService'
 
-/**
- * 📦 تابع عمومی برای اجرای درخواست GET با ساختار پاسخ استاندارد سرور
- */
+/** 📥 متد GET */
 export async function getResult<T>(url: string, config?: object): Promise<T> {
-    const response = await api.get<Result<T>>(url, config)
-    const parsed = parseServerResponse<T>(response.data)
-    if (!parsed.isSuccess) throw new Error(parsed.message)
-    return parsed.value as T
+    const res = await api.get<ApiResponse<T>>(url, config)
+    const parsed = parseServerResponse<T>(res.data)
+    if (!parsed.success) throw new Error(parsed.message)
+    return parsed.data
 }
 
-/**
- * 📤 ارسال داده با POST همراه با تحلیل پاسخ (Type‑Safe)
- */
-export async function postResult<T>(
-    url: string,
-    body?: unknown,
-    config?: object
-): Promise<T> {
-    const response = await api.post<Result<T>>(url, body, config)
-    const parsed = parseServerResponse<T>(response.data)
-    if (!parsed.isSuccess) throw new Error(parsed.message)
-    return parsed.value as T
+/** 📤 متد POST */
+export async function postResult<T>(url: string, body?: unknown, config?: object): Promise<T> {
+    const res = await api.post<ApiResponse<T>>(url, body, config)
+    const parsed = parseServerResponse<T>(res.data)
+    if (!parsed.success) throw new Error(parsed.message)
+    return parsed.data
 }
 
-/**
- * ✏️ ویرایش داده با PUT همراه تحلیل استاندارد پاسخ سرور
- */
-export async function putResult<T>(
-    url: string,
-    body?: unknown,
-    config?: object
-): Promise<T> {
-    const response = await api.put<Result<T>>(url, body, config)
-    const parsed = parseServerResponse<T>(response.data)
-    if (!parsed.isSuccess) throw new Error(parsed.message)
-    return parsed.value as T
+/** ✏️ متد PUT */
+export async function putResult<T>(url: string, body?: unknown, config?: object): Promise<T> {
+    const res = await api.put<ApiResponse<T>>(url, body, config)
+    const parsed = parseServerResponse<T>(res.data)
+    if (!parsed.success) throw new Error(parsed.message)
+    return parsed.data
 }
 
-/**
- * ❌ حذف داده با DELETE همراه تحلیل پاسخ سرور و کنترل خطاهای منطقی
- */
+/** ❌ متد DELETE */
 export async function deleteResult<T>(url: string, config?: object): Promise<T> {
-    const response = await api.delete<Result<T>>(url, config)
-    const parsed = parseServerResponse<T>(response.data)
-    if (!parsed.isSuccess) throw new Error(parsed.message)
-    return parsed.value as T
+    const res = await api.delete<ApiResponse<T>>(url, config)
+    const parsed = parseServerResponse<T>(res.data)
+    if (!parsed.success) throw new Error(parsed.message)
+    return parsed.data
 }
 
-/**
- * 🔗 تجمیع توابع کمکی در یک آبجکت واحد برای دسترسی راحت‌تر
- */
-export const apiHelper = {
-    getResult,
-    postResult,
-    putResult,
-    deleteResult,
-}
-
+export const apiHelper = { getResult, postResult, putResult, deleteResult }
 export default apiHelper

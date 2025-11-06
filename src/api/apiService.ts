@@ -1,93 +1,118 @@
-// 📁 مسیر فایل: src/api/apiService.ts
+// 📁 مسیر: src/api/apiService.ts
 import axios from 'axios'
-import type { AxiosInstance, AxiosResponse, AxiosRequestConfig } from 'axios'
-import { toast } from 'react-toastify'
-import type { Result } from '../types/result'
+import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 
-/**
- * 🧩 کلاینت مرکزی Axios با تنظیمات پایه
- */
+/** 📦 ساختار واحد پاسخ سرور (قرارداد استاندارد نهایی) */
+export interface ApiResponse<T> {
+    success: boolean
+    message: string
+    data: T
+    details?: string | null
+    traceId?: string | null
+}
+
+/** ⚙️ کلاینت مرکزی Axios */
 const api: AxiosInstance = axios.create({
     baseURL: 'https://localhost:7009/api/',
     timeout: 10000,
 })
 
-// ✅ جلوگیری از نمایش چندباره Toast قطع سرور
-let serverUnavailableToastShown = false
-
-// ----------------------------------------------------------------------------
-// 🧠 تابع کمکی مرکزی برای نرمال‌سازی پاسخ سرور
-// حالا از همین در Interceptor و apiHelper استفاده می‌کنیم تا منطق واحد باشد.
-// ----------------------------------------------------------------------------
-export function parseServerResponse<T>(
-    response: unknown
-): { isSuccess: boolean; message?: string; value?: T } {
-    if (typeof response !== 'object' || response === null) {
-        return { isSuccess: false, message: 'ارتباط با سرور برقرار نیست.', value: undefined }
+/* -------------------------------------------------------------------------- */
+/* 🧠 تابع عمومی برای Parse امن و Type‑Safe پاسخ‌های تو در توی سرور           */
+/* پوشش تمام ساختارهای ممکن: data.value, data.data.value, value               */
+/* -------------------------------------------------------------------------- */
+export function parseServerResponse<T>(response: unknown): ApiResponse<T> {
+    if (!response || typeof response !== 'object') {
+        return {
+            success: false,
+            message: 'پاسخ نامعتبر از سرور.',
+            data: undefined as T,
+        }
     }
 
-    const resp = response as Record<string, unknown>
-    const top = (resp.data ?? resp) as Record<string, unknown>
-    const nested = (top.data ?? null) as Record<string, unknown> | null
+    const r1 = response as Record<string, unknown>
+    const r2 = (r1.data ?? r1) as Record<string, unknown>
+    const r3 = (r2.data ?? r2.value ?? null) as Record<string, unknown> | null
+    const r4 = (r3?.data ?? r3?.value ?? null) as Record<string, unknown> | null
 
-    const result =
-        nested && typeof nested.isSuccess === 'boolean' ? nested : top
+    const success =
+        Boolean(
+            r4?.success ??
+            r3?.success ??
+            r2?.success ??
+            r1.success ??
+            r4?.isSuccess ??
+            r3?.isSuccess ??
+            r2?.isSuccess
+        )
 
-    const value =
-        (result.value as T) ??
-        ((result.data as Record<string, unknown> | undefined)?.value as T) ??
-        undefined
+    const message =
+        (r4?.message as string | undefined) ??
+        (r3?.message as string | undefined) ??
+        (r2.message as string | undefined) ??
+        (r1.message as string | undefined) ??
+        'عملیات با خطا مواجه شد.'
+
+    // 🎯 داده نهایی
+    const dataCandidate =
+        (r4?.value as T) ??
+        (r3?.value as T) ??
+        (r2.value as T) ??
+        (r4?.data as T) ??
+        (r3?.data as T) ??
+        (r2.data as T)
 
     return {
-        isSuccess: Boolean(result.isSuccess),
-        message:
-            (result.message as string | undefined) ??
-            (top.message as string | undefined) ??
-            'عملیات با خطا مواجه شد.',
-        value,
+        success,
+        message,
+        data: (dataCandidate ?? undefined) as T,
+        details:
+            (r4?.details as string | null) ??
+            (r3?.details as string | null) ??
+            (r2.details as string | null) ??
+            null,
+        traceId:
+            (r4?.traceId as string | null) ??
+            (r3?.traceId as string | null) ??
+            (r2.traceId as string | null) ??
+            null,
     }
 }
 
-/**
- * ♻️ تابع Retry با Backoff نمایی
- * - تا ۳ بار تلاش با تأخیر افزایشی
- */
-const retryRequest = async <T>(
-    requestFn: () => Promise<AxiosResponse<Result<T>>>,
+/* -------------------------------------------------------------------------- */
+/* ♻️ Retry خودکار با Backoff نمایی (سه بار تلاش)                             */
+/* -------------------------------------------------------------------------- */
+async function retryRequest<T>(
+    requestFn: () => Promise<AxiosResponse<T>>,
     retries = 3,
     baseDelay = 1500
-): Promise<AxiosResponse<Result<T>>> => {
-    for (let attempt = 0; attempt < retries; attempt++) {
+): Promise<AxiosResponse<T>> {
+    for (let i = 0; i < retries; i++) {
         try {
             return await requestFn()
-        } catch (err) {
-            if (attempt === retries - 1) throw err
-            const delay = baseDelay * (attempt + 1)
-            await new Promise<void>(resolve => setTimeout(resolve, delay))
+        } catch {
+            if (i === retries - 1) throw new Error('خطای اتصال به سرور.')
+            await new Promise<void>(resolve =>
+                setTimeout(resolve, baseDelay * (i + 1))
+            )
         }
     }
-    throw new Error('Unreachable code')
+    throw new Error('Unreachable retry block.')
 }
 
-/**
- * 🧠 رهگیر پاسخ‌ها
- * - کنترل خطاهای منطقی سرور با parseServerResponse
- * - Retry در خطای شبکه
- */
+/* -------------------------------------------------------------------------- */
+/* 🧱 Interceptor پاسخ‌ها                                                     */
+/* -------------------------------------------------------------------------- */
 api.interceptors.response.use(
-    <T>(response: AxiosResponse<Result<T>>) => {
-        const parsed = parseServerResponse<T>(response)
-
-        // اگر سرور Success=false برگرداند، Toast فارسی و Reject
-        if (!parsed.isSuccess) {
-            toast.error(parsed.message ?? 'عملیات با خطا مواجه شد.', { rtl: true })
-            return Promise.reject(response)
-        }
-
-        return response as AxiosResponse<Result<T>>
+    <T>(response: AxiosResponse<ApiResponse<T>>) => {
+        const parsed = parseServerResponse<T>(response.data)
+        if (!parsed.success)
+            return Promise.reject(new Error(parsed.message ?? 'عملیات با خطا مواجه شد.'))
+        return response
     },
+
     async (error: unknown) => {
-        const axiosError = error as {
+        const err = error as {
             code?: string
             message?: string
             response?: AxiosResponse<{ message?: string }>
@@ -95,37 +120,27 @@ api.interceptors.response.use(
         }
 
         const isNetworkError =
-            axiosError.code === 'ERR_NETWORK' ||
-            axiosError.message?.includes('Network Error') ||
-            !axiosError.response
+            err.code === 'ERR_NETWORK' ||
+            !err.response ||
+            err.message?.includes('Network Error')
 
+        // 🚨 خطای شبکه → تلاش مجدد با backoff
         if (isNetworkError) {
             try {
-                const retried = await retryRequest(() =>
-                    axios.request(axiosError.config as AxiosRequestConfig)
+                return await retryRequest(() =>
+                    axios.request(err.config as AxiosRequestConfig)
                 )
-                return retried
             } catch {
-                if (!serverUnavailableToastShown) {
-                    toast.error('☁ سرور در دسترس نیست. لطفاً بعداً تلاش کنید.', { rtl: true })
-                    serverUnavailableToastShown = true
-                }
-                const persianNetworkError = new Error('خطای اتصال به شبکه.')
-                return Promise.reject(persianNetworkError)
+                return Promise.reject(new Error('☁ سرور در دسترس نیست.'))
             }
         }
 
-        // سایر خطاهای HTTP
-        const message =
-            axiosError.response?.data?.message ?? 'خطای ناشناخته از سمت سرور.'
-        toast.error(message, { rtl: true })
-        return Promise.reject(error)
+        const msg =
+            err.response?.data?.message ??
+            err.message ??
+            'خطای ناشناخته از سمت سرور.'
+        return Promise.reject(new Error(msg))
     }
 )
-
-// 🔄 ریست پرچم Toast هنگام بازگشت به حالت آنلاین
-window.addEventListener('online', () => {
-    serverUnavailableToastShown = false
-})
 
 export default api

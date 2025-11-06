@@ -1,4 +1,4 @@
-// 📁 مسیر فایل: src/hooks/useApi.ts
+// 📁 مسیر: src/hooks/useApi.ts
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { toast } from 'react-toastify'
 import * as apiHelper from '../api/apiHelper'
@@ -11,7 +11,9 @@ interface UseApiOptions {
     cacheDurationMinutes?: number
 }
 
-// 📌 هوک واکشی Type-safe با پشتیبانی از کش و مدیریت خطا
+/**
+ * 🔁 هوک واکشی عمومی با پشتیبانی کش، Toast و Type‑Safety
+ */
 export function useApi<T>(endpoint: string, options: UseApiOptions = {}) {
     const {
         immediate = true,
@@ -20,11 +22,11 @@ export function useApi<T>(endpoint: string, options: UseApiOptions = {}) {
     } = options
 
     const cacheKey = `api-cache-${endpoint}`
-    const initialData = getCache<T>(cacheKey, cacheDurationMinutes)
+    const cachedData = getCache<T>(cacheKey, cacheDurationMinutes)
 
     const [state, setState] = useState<ApiState<T>>({
-        data: initialData.data,
-        isLoading: initialData.data ? false : true,
+        data: cachedData.data,
+        isLoading: !cachedData.data,
         error: null,
     })
 
@@ -34,38 +36,27 @@ export function useApi<T>(endpoint: string, options: UseApiOptions = {}) {
         if (isFetchingRef.current) return
         isFetchingRef.current = true
 
-        if (!state.data) {
-            setState(prev => ({ ...prev, isLoading: true, error: null }))
-        }
+        if (!state.data) setState(prev => ({ ...prev, isLoading: true }))
 
         try {
             const result = await apiHelper.getResult<T>(endpoint)
             setCache(cacheKey, result)
             setState({ data: result, isLoading: false, error: null })
-        } catch (err: unknown) {
-            let message = 'خطایی در انجام عملیات رخ داد.'
-            if (err instanceof Error && err.message) message = err.message
-
-            if (/Network|ارتباط|سرور/i.test(message)) {
-                message = 'سرور در دسترس نیست.'
-            }
-
-            // اگر داده قبلاً در کش هست → نسخه آفلاین
-            if (state.data) {
-                toast.error('سرور امکان برقراری ارتباط با سرور وجود ندارد.', { rtl: true })
-                setState(prev => ({ ...prev, isLoading: false, error: message }))
-            } else {
-                toast.error(message, { rtl: true })
-                setState({ data: null, isLoading: false, error: message })
-            }
+        } catch (err) {
+            const message =
+                err instanceof Error && err.message
+                    ? err.message
+                    : 'خطایی در برقراری ارتباط رخ داد.'
+            if (/Network|ارتباط|سرور/i.test(message))
+                toast.error('سرور در دسترس نیست.', { rtl: true })
+            else toast.error(message, { rtl: true })
+            setState(prev => ({ ...prev, isLoading: false, error: message }))
         } finally {
             isFetchingRef.current = false
         }
     }, [endpoint, cacheKey, state.data])
 
-    const refetch = useCallback(() => {
-        fetchData()
-    }, [fetchData])
+    const refetch = useCallback(() => fetchData(), [fetchData])
 
     useEffect(() => {
         if (immediate) fetchData()
@@ -80,3 +71,5 @@ export function useApi<T>(endpoint: string, options: UseApiOptions = {}) {
 
     return { ...state, refetch, isEmpty: !state.isLoading && !state.data }
 }
+
+export default useApi
