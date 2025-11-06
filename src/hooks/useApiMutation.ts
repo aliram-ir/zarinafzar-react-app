@@ -1,4 +1,4 @@
-// 📁 مسیر فایل: src/hooks/useApiMutation.ts
+// 📁 src/hooks/useApiMutation.ts
 import { useState, useCallback, useRef } from 'react'
 import { toast } from 'react-toastify'
 import type { AxiosError } from 'axios'
@@ -18,23 +18,21 @@ function isOptimisticFn<T>(
 }
 
 /**
- * ✅ نسخه نهایی هوک useApiMutation
- * منطق موفقیت فقط اگر response.success === true
+ * 🔁 هوک اجرای Mutation عمومی با Toast خودکار
+ * ✅ همه پیام‌ها از پاسخ API می‌آیند به جز خطای سرور/شبکه
  */
-export function useApiMutation<TInput, TOutput extends { success?: boolean; message?: string }>(
+export function useApiMutation<
+    TInput,
+    TOutput extends { success?: boolean; message?: string }
+>(
     requestFn: (payload: TInput) => Promise<TOutput>,
     options?: MutationOptions<TOutput>
 ) {
-    const [state, setState] = useState<{
-        isLoading: boolean
-        isSuccess: boolean
-        error: string | null
-        data: TOutput | null
-    }>({
+    const [state, setState] = useState({
         isLoading: false,
         isSuccess: false,
-        error: null,
-        data: null,
+        error: null as string | null,
+        data: null as TOutput | null,
     })
 
     const previousDataRef = useRef<TOutput | null>(null)
@@ -54,22 +52,18 @@ export function useApiMutation<TInput, TOutput extends { success?: boolean; mess
             try {
                 const result = await requestFn(payload)
 
-                // ⚠️ بررسی منطق موفقیت واقعی
-                if (typeof result === 'object' && 'success' in result && result.success === false) {
-                    const msg = result.message || 'عملیات با خطا مواجه شد.'
+                // ✅ اگر سرور گفت success=false، یعنی خطا
+                if (result && result.success === false) {
+                    const msg = result.message || '❌ عملیات با خطا مواجه شد'
+                    toast.error(msg, { rtl: true })
                     throw new Error(msg)
                 }
 
-                // ✅ فقط در حالت موفقیت واقعی
+                // 🟢 موفقیت واقعی
                 setState({ isLoading: false, isSuccess: true, error: null, data: result })
+                if (result?.message) toast.success(result.message, { rtl: true })
                 options?.onSuccess?.(result)
-
-                // اگر خود تابع بالا Toast نده، پیش‌فرض نمایش داده می‌شه
-                if (result.message)
-                    toast.success(result.message, { rtl: true })
-                else
-                    toast.success('✅ عملیات با موفقیت انجام شد', { rtl: true })
-            } catch (err: unknown) {
+            } catch (err) {
                 const fallback = options?.rollbackData ?? previousDataRef.current
                 if (fallback) setState(prev => ({ ...prev, data: fallback }))
 
@@ -80,10 +74,15 @@ export function useApiMutation<TInput, TOutput extends { success?: boolean; mess
                 if (axiosErr.response?.data?.message)
                     message = axiosErr.response.data.message
 
-                if (/Network|ارتباط|سرور/i.test(message))
+                // ❌ فقط خطاهای ارتباطی پیام ثابت دارند
+                if (/Network|ارتباط|سرور|ECONNREFUSED|ERR_NETWORK/i.test(message)) {
                     message = '❌ امکان برقراری ارتباط با سرور وجود ندارد.'
+                    toast.error(message, { rtl: true })
+                }
+                else {
+                    toast.error(message, { rtl: true })
+                }
 
-                toast.error(message, { rtl: true })
                 setState(prev => ({ ...prev, isLoading: false, isSuccess: false, error: message }))
                 options?.onError?.(err)
             }

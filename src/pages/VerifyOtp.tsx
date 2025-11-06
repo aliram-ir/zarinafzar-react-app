@@ -10,7 +10,8 @@ import { useApiMutation } from '@/hooks/useApiMutation'
 
 /**
  * 💡 صفحه‌ی تأیید شماره موبایل (OTP)
- * کنترل تایمر، Toast و هدایت امن به صفحه ثبت‌نام نهایی
+ *  - کنترل انقضا، مدیریت سشن و هدایت امن به صفحه ثبت‌نام
+ *  - Toastهای API از طریق useApiMutation مدیریت می‌شوند
  */
 export default function VerifyOtp() {
     const [otpCode, setOtpCode] = useState('')
@@ -18,25 +19,18 @@ export default function VerifyOtp() {
     const navigate = useNavigate()
     const session = getOtpSession()
 
-    // 🚀 فراخوانی API تأیید OTP با Typeهای نوع‌دار
-    const { mutate, isLoading } = useApiMutation<VerifyOtpRequest, VerifyOtpResponse>(verifyOtp, {
-        onSuccess: res => {
-            if (res.success && res.data === true) {
-                setOtpVerified()
-                toast.success('✅ کد با موفقیت تأیید شد', { rtl: true })
-                navigate('/complete-registration')
-            } else {
-                toast.error(res.message ?? 'کد وارد شده صحیح نیست', { rtl: true })
-            }
-        },
-        onError: err => {
-            const msg =
-                err instanceof Error && err.message
-                    ? err.message
-                    : 'خطا در ارتباط با سرور'
-            toast.error(msg, { rtl: true })
-        },
-    })
+    // 🚀 فقط ناوبری موفقیت در این لایه — Toast در خود useApiMutation انجام می‌شود
+    const { mutate, isLoading } = useApiMutation<VerifyOtpRequest, VerifyOtpResponse>(
+        verifyOtp,
+        {
+            onSuccess: res => {
+                if (res.success && res.data === true) {
+                    setOtpVerified()
+                    navigate('/complete-registration')
+                }
+            },
+        }
+    )
 
     /* ---------------------------------------------------------------------- */
     /* ⏱️ کنترل سشن و تایمر انقضای OTP                                      */
@@ -47,20 +41,18 @@ export default function VerifyOtp() {
             return
         }
 
-        // اگر سشن منقضی شده و هنوز تأیید نشده است
-        if (session.isExpired) {
-            toast.info('⏰ زمان وارد کردن کد منقضی شده است.', { rtl: true })
+        if (session.isExpired && !session.verified) {
+            toast.info('زمان اعتبار کد منقضی شده است.', { rtl: true })
             clearOtpSession()
             navigate('/send-otp')
             return
         }
 
-        // ⏲️ محاسبه باقیمانده‌ی زمان فقط زمانی که تأیید نشده است
         if (!session.verified) {
             const interval = setInterval(() => {
                 const remaining = session.expireAt - Date.now()
                 if (remaining <= 0) {
-                    toast.info('زمان کد به پایان رسید ⏰', { rtl: true })
+                    toast.info('زمان کد به پایان رسید', { rtl: true })
                     clearOtpSession()
                     navigate('/send-otp')
                     clearInterval(interval)
@@ -74,16 +66,16 @@ export default function VerifyOtp() {
     }, [navigate, session])
 
     /* ---------------------------------------------------------------------- */
-    /* 🧭 ارسال فرم تأیید                                                   */
+    /* 🧭 ارسال فرم تأیید (فقط اعتبارسنجی محلی)                             */
     /* ---------------------------------------------------------------------- */
     const handleSubmit = () => {
         if (!/^\d{4,6}$/.test(otpCode)) {
-            toast.error('کد باید عددی ۴ تا ۶ رقمی باشد', { rtl: true })
+            toast.warn('کد باید عددی ۴ تا ۶ رقمی باشد ❗', { rtl: true })
             return
         }
 
         if (!session) {
-            toast.error('❌ سشن نامعتبر است', { rtl: true })
+            toast.error('سشن نامعتبر است، لطفاً دوباره تلاش کنید.', { rtl: true })
             navigate('/send-otp')
             return
         }
@@ -91,11 +83,11 @@ export default function VerifyOtp() {
         mutate({ phoneNumber: session.phone, otpCode })
     }
 
-    // 🧩 در صورت نبود سشن، از رندر صفحه جلوگیری کن
+    // 🧩 اگر سشن موجود نیست، هیچ چیز نمایش نده
     if (!session) return null
 
     /* ---------------------------------------------------------------------- */
-    /* 🎨 UI صفحه تأیید OTP                                                 */
+    /* 🎨 رابط کاربری (UI) صفحه تأیید OTP                                   */
     /* ---------------------------------------------------------------------- */
     return (
         <Box
@@ -115,16 +107,13 @@ export default function VerifyOtp() {
             <TextField
                 label="کد تأیید"
                 value={otpCode}
-                onChange={e => setOtpCode(e.target.value)}
+                onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 fullWidth
-                slotProps={{
-                    input: {
-                        dir: 'ltr',
-                        inputProps: {
-                            inputMode: 'numeric',
-                            maxLength: 6,
-                        },
-                    },
+                inputProps={{
+                    dir: 'ltr',
+                    inputMode: 'numeric',
+                    pattern: '[0-9]*',
+                    maxLength: 6,
                 }}
             />
 
@@ -139,11 +128,7 @@ export default function VerifyOtp() {
             </Button>
 
             {!session.verified && (
-                <Typography
-                    align="center"
-                    color="text.secondary"
-                    sx={{ mt: 1 }}
-                >
+                <Typography align="center" color="text.secondary" sx={{ mt: 1 }}>
                     ⏳ اعتبار کد: {Math.floor(seconds / 60)}:
                     {('0' + (seconds % 60)).slice(-2)}
                 </Typography>

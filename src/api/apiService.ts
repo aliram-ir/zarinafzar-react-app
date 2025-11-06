@@ -20,7 +20,7 @@ export interface ApiResponse<T> {
 /* ⚙️ پیکربندی کلاینت مرکزی Axios                                            */
 /* -------------------------------------------------------------------------- */
 const api: AxiosInstance = axios.create({
-    baseURL: 'https://localhost:7009/api/',
+    baseURL: 'https://localhost:70009/api/',
     timeout: 10000,
 })
 

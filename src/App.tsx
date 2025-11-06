@@ -1,8 +1,8 @@
-// 📁 src/App.tsx
-import { BrowserRouter } from 'react-router-dom';
-import AppRoutes from '@/routes/AppRoutes';
-import { ThemeModeProvider } from '@/providers/ThemeModeProvider';
-import ToastProvider from '@/components/ToastProvider'; // ✅ استفاده از Provider یکتا
+import { BrowserRouter } from 'react-router-dom'
+import AppRoutes from '@/routes/AppRoutes'
+import { ToastContainer } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
+import { ThemeModeProvider } from '@/providers/ThemeModeProvider'
 
 export default function App() {
   return (
@@ -10,7 +10,17 @@ export default function App() {
       <BrowserRouter>
         <AppRoutes />
       </BrowserRouter>
-      <ToastProvider />
+
+      {/* ✅ فقط همین یک ToastContainer */}
+      <ToastContainer
+        position="bottom-left"
+        rtl
+        newestOnTop
+        autoClose={4000}
+        pauseOnHover
+        draggable
+        theme="colored"
+      />
     </ThemeModeProvider>
-  );
+  )
 }

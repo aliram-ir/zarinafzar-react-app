@@ -7,28 +7,27 @@ import { useApiMutation } from '@/hooks/useApiMutation'
 import { sendOtp } from '@/api/services/authService'
 import type { SendOtpRequest, SendOtpResponse } from '@/types/auth'
 import { getOtpSession, setOtpSession } from '@/utils/otpSession'
-import { toastSoftWarn } from '@/components/toast'
 import SendIcon from '@mui/icons-material/Send'
 
 export default function SendOtp() {
     const [phone, setPhone] = useState('')
     const navigate = useNavigate()
 
-    const { mutate, isLoading } = useApiMutation<SendOtpRequest, SendOtpResponse>(sendOtp, {
-        onSuccess: res => {
-            if (res.success) {
-                setOtpSession(phone)
-                toast.success('کد OTP ارسال شد.', { rtl: true }) // ✅ اصلاح شد
-                navigate('/verify-otp')
-            } else {
-                toast.error(res.message ?? 'ارسال کد با خطا مواجه شد', { rtl: true })
-            }
-        },
-        onError: () => {
-            toast.error('خطا در ارتباط با سرور', { rtl: true })
-        },
-    })
+    // 🚀 فقط منطق API، Toast در خود useApiMutation انجام می‌شود
+    const { mutate, isLoading } = useApiMutation<SendOtpRequest, SendOtpResponse>(
+        sendOtp,
+        {
+            onSuccess: res => {
+                if (res.success) {
+                    // ✅ ذخیره session و هدایت
+                    setOtpSession(phone)
+                    navigate('/verify-otp')
+                }
+            },
+        }
+    )
 
+    // 🔄 بررسی سشن فعال OTP (درصورت وجود هدایت به verify-otp)
     useEffect(() => {
         const controller = new AbortController()
         const session = getOtpSession()
@@ -38,9 +37,10 @@ export default function SendOtp() {
         return () => controller.abort()
     }, [navigate])
 
+    // 📤 ارسال کد OTP
     const handleSubmit = () => {
         if (!/^09\d{9}$/.test(phone)) {
-            toastSoftWarn('شماره موبایل معتبر نیست')
+            toast.warn('شماره موبایل معتبر نیست', { rtl: true })
             return
         }
         mutate({ phoneNumber: phone })
@@ -64,18 +64,18 @@ export default function SendOtp() {
             <TextField
                 label="شماره موبایل"
                 value={phone}
-                onChange={e => setPhone(e.target.value)}
+                onChange={e => setPhone(e.target.value.trim())}
                 fullWidth
-                slotProps={{
-                    input: {
-                        dir: 'ltr',
-                        inputProps: { inputMode: 'numeric', maxLength: 11 },
-                    },
+                inputProps={{
+                    dir: 'ltr',
+                    inputMode: 'numeric',
+                    pattern: '[0-9]*',
+                    maxLength: 11,
                 }}
             />
 
             <Button
-                variant="text"
+                variant="contained"
                 color="primary"
                 size="large"
                 startIcon={<SendIcon sx={{ ml: 1 }} />}

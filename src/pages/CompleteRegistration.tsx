@@ -9,14 +9,14 @@ import { getOtpSession, clearOtpSession } from '@/utils/otpSession'
 import { toast } from 'react-toastify'
 
 /**
- * 🧩 صفحه‌ی تکمیل ثبت‌نام با کنترل نوع داده، اعتبارسنجی سمت کلاینت
- * و مدیریت کامل پاسخ منطقی سرور (success=false).
+ * 🧩 صفحه‌ی تکمیل ثبت‌نام — فقط کنترل داده و اعتبارسنجی محلی
+ * ✅ همه پیام‌های سرور از طریق useApiMutation مدیریت و نمایش داده می‌شوند.
  */
 export default function CompleteRegistration() {
     const navigate = useNavigate()
     const session = getOtpSession()
 
-    // 🎯 Stateهای مورد نیاز فرم
+    // 🧠 Stateها
     const [firstName, setFirstName] = useState('')
     const [lastName, setLastName] = useState('')
     const [nationalCode, setNationalCode] = useState('')
@@ -24,30 +24,22 @@ export default function CompleteRegistration() {
     const [password, setPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
 
-    // 🚀 Mutation برای ثبت‌نام نهایی
-    const { mutate, isLoading } = useApiMutation<CompleteRegistrationRequest, CompleteRegistrationResponse>(
-        completeRegistration,
-        {
-            onSuccess: res => {
-                // ✅ فقط اگر عملیات واقعاً موفق بود
-                if (res.success) {
-                    toast.success(res.message || 'ثبت‌نام با موفقیت انجام شد', { rtl: true })
-                    clearOtpSession()
-                    navigate('/')
-                } else {
-                    // ❌ پاسخ منطقی ناموفق (مثلاً ایمیل تکراری)
-                    toast.error(res.message || 'ثبت‌نام انجام نشد', { rtl: true })
-                }
-            },
-            onError: err => {
-                const msg = err instanceof Error ? err.message : 'خطا در ارتباط با سرور'
-                toast.error(msg, { rtl: true })
-            },
-        }
-    )
+    // ✨ Mutation (Toastها درون هوک مدیریت می‌شوند)
+    const { mutate, isLoading } = useApiMutation<
+        CompleteRegistrationRequest,
+        CompleteRegistrationResponse
+    >(completeRegistration, {
+        onSuccess: res => {
+            // ✅ فقط هدایت در صورت موفقیت واقعی
+            if (res.success) {
+                clearOtpSession()
+                navigate('/')
+            }
+        },
+    })
 
     /* ---------------------------------------------------------------------- */
-    /* 🚦 بررسی سشن و جلوگیری از ورود غیرمجاز                               */
+    /* 🚦 بررسی سشن برای جلوگیری از ورود مستقیم بدون OTP                   */
     /* ---------------------------------------------------------------------- */
     useEffect(() => {
         if (!session?.verified) {
@@ -56,32 +48,38 @@ export default function CompleteRegistration() {
     }, [navigate, session?.verified])
 
     /* ---------------------------------------------------------------------- */
-    /* 🧭 تابع اعتبارسنجی قبل از ارسال فرم                                  */
+    /* 🧭 اعتبارسنجی سمت کلاینت                                             */
     /* ---------------------------------------------------------------------- */
     const validateForm = (): boolean => {
-        if (!firstName.trim() || !lastName.trim() || !nationalCode.trim() ||
-            !email.trim() || !password.trim() || !confirmPassword.trim()) {
-            toast.error('تمامی فیلدها الزامی هستند', { rtl: true })
+        if (
+            !firstName.trim() ||
+            !lastName.trim() ||
+            !nationalCode.trim() ||
+            !email.trim() ||
+            !password.trim() ||
+            !confirmPassword.trim()
+        ) {
+            toast.warn('تمامی فیلدها الزامی هستند ⚠️', { rtl: true })
             return false
         }
 
         if (!/^\d{10}$/.test(nationalCode)) {
-            toast.error('کد ملی باید ۱۰ رقم باشد', { rtl: true })
+            toast.warn('کد ملی باید دقیقاً ۱۰ رقم باشد', { rtl: true })
             return false
         }
 
         if (password.length < 6) {
-            toast.error('رمز عبور باید حداقل ۶ کاراکتر باشد', { rtl: true })
+            toast.warn('رمز عبور باید حداقل ۶ کاراکتر باشد', { rtl: true })
             return false
         }
 
         if (password !== confirmPassword) {
-            toast.error('رمز و تکرار آن باید یکسان باشند', { rtl: true })
+            toast.warn('رمز و تکرار آن باید یکسان باشند', { rtl: true })
             return false
         }
 
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-            toast.error('فرمت ایمیل معتبر نیست', { rtl: true })
+            toast.warn('فرمت ایمیل نامعتبر است', { rtl: true })
             return false
         }
 
@@ -89,11 +87,11 @@ export default function CompleteRegistration() {
     }
 
     /* ---------------------------------------------------------------------- */
-    /* 📤 ارسال فرم                                                          */
+    /* 🚀 ارسال داده‌ها به API                                              */
     /* ---------------------------------------------------------------------- */
     const handleSubmit = () => {
         if (!session?.phone) {
-            toast.error('سشن معتبر یافت نشد یا به پایان رسیده', { rtl: true })
+            toast.error('❌ سشن معتبر یافت نشد. لطفاً مجدداً احراز هویت کنید.', { rtl: true })
             navigate('/send-otp')
             return
         }
@@ -104,22 +102,21 @@ export default function CompleteRegistration() {
             phoneNumber: session.phone,
             firstName: firstName.trim(),
             lastName: lastName.trim(),
-            confirmPassword: confirmPassword.trim(),
-            createdAt: new Date().toISOString(),
-            roleId: '00000000-0000-0000-0000-000000000000',
             nationalCode: nationalCode.trim(),
             email: email.trim(),
             password: password.trim(),
+            confirmPassword: confirmPassword.trim(),
+            createdAt: new Date().toISOString(),
+            roleId: '00000000-0000-0000-0000-000000000000',
         }
 
         mutate(payload)
     }
 
-    // 🛑 جلوگیری از رندر در صورت نبود سشن یا تأیید OTP
     if (!session?.verified) return null
 
     /* ---------------------------------------------------------------------- */
-    /* 🎨 UI فرم تکمیل ثبت‌نام                                               */
+    /* 🎨 رابط کاربری (UI)                                                 */
     /* ---------------------------------------------------------------------- */
     return (
         <Box
@@ -142,62 +139,48 @@ export default function CompleteRegistration() {
                 value={session.phone}
                 fullWidth
                 disabled
-                margin="normal"
                 inputProps={{ dir: 'ltr' }}
             />
 
-            {/* نام و نام خانوادگی */}
             <TextField
                 label="نام"
                 value={firstName}
                 onChange={e => setFirstName(e.target.value)}
-                fullWidth
-                margin="normal"
                 inputProps={{ dir: 'rtl' }}
+                fullWidth
             />
 
             <TextField
                 label="نام خانوادگی"
                 value={lastName}
                 onChange={e => setLastName(e.target.value)}
-                fullWidth
-                margin="normal"
                 inputProps={{ dir: 'rtl' }}
+                fullWidth
             />
 
-            {/* کد ملی */}
             <TextField
                 label="کد ملی"
                 value={nationalCode}
                 onChange={e => setNationalCode(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                inputProps={{ dir: 'ltr', inputMode: 'numeric', maxLength: 10 }}
                 fullWidth
-                margin="normal"
-                inputProps={{
-                    dir: 'ltr',
-                    inputMode: 'numeric',
-                    maxLength: 10,
-                }}
             />
 
-            {/* ایمیل */}
             <TextField
                 label="ایمیل"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                fullWidth
-                margin="normal"
                 inputProps={{ dir: 'ltr' }}
+                fullWidth
             />
 
-            {/* رمز عبور */}
             <TextField
                 label="رمز عبور"
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                fullWidth
-                margin="normal"
                 inputProps={{ dir: 'ltr' }}
+                fullWidth
             />
 
             <TextField
@@ -205,18 +188,16 @@ export default function CompleteRegistration() {
                 type="password"
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
-                fullWidth
-                margin="normal"
                 inputProps={{ dir: 'ltr' }}
+                fullWidth
             />
 
-            {/* دکمه ثبت‌نام */}
             <Button
                 fullWidth
                 variant="contained"
                 color="primary"
-                onClick={handleSubmit}
                 disabled={isLoading}
+                onClick={handleSubmit}
                 sx={{ mt: 2 }}
             >
                 {isLoading ? 'در حال ثبت...' : 'ثبت‌نام نهایی'}
