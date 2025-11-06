@@ -1,4 +1,4 @@
-// 📁 src/hooks/useApiMutation.ts
+// 📁 مسیر: src/hooks/useApiMutation.ts
 import { useState, useCallback, useRef } from 'react'
 import { toast } from 'react-toastify'
 import type { AxiosError } from 'axios'
@@ -10,17 +10,12 @@ interface MutationOptions<TOutput> {
     rollbackData?: TOutput | null
 }
 
-/** تشخیص تابع بودن optimisticData */
 function isOptimisticFn<T>(
     value: T | ((prev: T | null) => T)
 ): value is (prev: T | null) => T {
     return typeof value === 'function'
 }
 
-/**
- * 🔁 هوک اجرای Mutation عمومی با Toast خودکار
- * ✅ همه پیام‌ها از پاسخ API می‌آیند به جز خطای سرور/شبکه
- */
 export function useApiMutation<
     TInput,
     TOutput extends { success?: boolean; message?: string }
@@ -52,15 +47,18 @@ export function useApiMutation<
             try {
                 const result = await requestFn(payload)
 
-                // ✅ اگر سرور گفت success=false، یعنی خطا
                 if (result && result.success === false) {
                     const msg = result.message || '❌ عملیات با خطا مواجه شد'
-                    toast.error(msg, { rtl: true })
                     throw new Error(msg)
                 }
 
-                // 🟢 موفقیت واقعی
-                setState({ isLoading: false, isSuccess: true, error: null, data: result })
+                setState({
+                    isLoading: false,
+                    isSuccess: true,
+                    error: null,
+                    data: result,
+                })
+                // ✅ Toast فقط برای موفقیت در اینجا
                 if (result?.message) toast.success(result.message, { rtl: true })
                 options?.onSuccess?.(result)
             } catch (err) {
@@ -74,16 +72,17 @@ export function useApiMutation<
                 if (axiosErr.response?.data?.message)
                     message = axiosErr.response.data.message
 
-                // ❌ فقط خطاهای ارتباطی پیام ثابت دارند
                 if (/Network|ارتباط|سرور|ECONNREFUSED|ERR_NETWORK/i.test(message)) {
                     message = '❌ امکان برقراری ارتباط با سرور وجود ندارد.'
-                    toast.error(message, { rtl: true })
-                }
-                else {
-                    toast.error(message, { rtl: true })
                 }
 
-                setState(prev => ({ ...prev, isLoading: false, isSuccess: false, error: message }))
+                // ❌ دیگر Toast در اینجا تکرار نمی‌شود زیرا در Interceptor هندل می‌شود
+                setState(prev => ({
+                    ...prev,
+                    isLoading: false,
+                    isSuccess: false,
+                    error: message,
+                }))
                 options?.onError?.(err)
             }
         },

@@ -4,10 +4,8 @@ import axios, {
     type AxiosRequestConfig,
     type AxiosResponse,
 } from 'axios'
+import { toast } from 'react-toastify'
 
-/* -------------------------------------------------------------------------- */
-/* 📦 مدل واحد پاسخ سرور                                                     */
-/* -------------------------------------------------------------------------- */
 export interface ApiResponse<T> {
     success: boolean
     message: string
@@ -16,17 +14,11 @@ export interface ApiResponse<T> {
     traceId?: string | null
 }
 
-/* -------------------------------------------------------------------------- */
-/* ⚙️ پیکربندی کلاینت مرکزی Axios                                            */
-/* -------------------------------------------------------------------------- */
 const api: AxiosInstance = axios.create({
-    baseURL: 'https://localhost:70009/api/',
+    baseURL: 'https://localhost:7009/api/',
     timeout: 10000,
 })
 
-/* -------------------------------------------------------------------------- */
-/* 🧠 Parse امن و Type‑Safe برای پوشش تمام ساختارهای ممکن پاسخ سرور          */
-/* -------------------------------------------------------------------------- */
 export function parseServerResponse<T>(response: unknown): ApiResponse<T> {
     if (!response || typeof response !== 'object') {
         return {
@@ -41,7 +33,6 @@ export function parseServerResponse<T>(response: unknown): ApiResponse<T> {
     const r3 = (r2.data ?? r2.value ?? r2.list ?? null) as Record<string, unknown> | null
     const r4 = (r3?.data ?? r3?.value ?? r3?.list ?? null) as Record<string, unknown> | null
 
-    // ✅ پوشش کامل تمام حالت‌ها (IsSuccess / isSuccess / success)
     const success = Boolean(
         r4?.success ??
         r3?.success ??
@@ -57,7 +48,6 @@ export function parseServerResponse<T>(response: unknown): ApiResponse<T> {
         r1.IsSuccess
     )
 
-    // ✅ پیام نهایی
     const message =
         (r4?.message as string | undefined) ??
         (r3?.message as string | undefined) ??
@@ -69,7 +59,6 @@ export function parseServerResponse<T>(response: unknown): ApiResponse<T> {
         (r1?.Message as string | undefined) ??
         (success ? 'عملیات با موفقیت انجام شد.' : 'عملیات با خطا مواجه شد.')
 
-    // ✅ استخراج داده — شامل boolean هم
     const candidates = [
         r4?.value,
         r3?.value,
@@ -112,9 +101,6 @@ export function parseServerResponse<T>(response: unknown): ApiResponse<T> {
     }
 }
 
-/* -------------------------------------------------------------------------- */
-/* 🔁 Retry خودکار با Backoff نمایی برای قطع شبکه                             */
-/* -------------------------------------------------------------------------- */
 async function retryRequest<T>(
     requestFn: () => Promise<AxiosResponse<T>>,
     retries = 3,
@@ -132,21 +118,17 @@ async function retryRequest<T>(
     throw new Error('☁ خطا در ارتباط با سرور.')
 }
 
-/* -------------------------------------------------------------------------- */
-/* 🧱 Interceptor پاسخ‌ها                                                     */
-/* -------------------------------------------------------------------------- */
 api.interceptors.response.use(
-    // ✅ تمام پاسخ‌ها (حتی با کد 400 / 422) به‌صورت Resolve بازگردانده می‌شوند
     <T>(response: AxiosResponse<ApiResponse<T>>) => {
         const parsed = parseServerResponse<T>(response.data)
         const typedResponse: AxiosResponse<ApiResponse<T>> = {
             ...response,
             data: parsed,
         }
+        // ✅ فقط خطاها نمایش داده می‌شوند (موفقیت در useApiMutation)
+        if (!parsed.success) toast.error(parsed.message, { rtl: true })
         return typedResponse
     },
-
-    // ⚠️ فقط خطاهای واقعی شبکه Reject می‌شوند
     async (error: unknown) => {
         const err = error as {
             code?: string
@@ -160,8 +142,8 @@ api.interceptors.response.use(
             !err.response ||
             err.message?.includes('Network Error')
 
-        // 🌐 در صورت خطای شبکه، تلاش مجدد انجام می‌شود
         if (isNetworkError) {
+            toast.error('☁ سرور در دسترس نیست.', { rtl: true })
             try {
                 return await retryRequest(() =>
                     axios.request(err.config as AxiosRequestConfig)
@@ -171,9 +153,9 @@ api.interceptors.response.use(
             }
         }
 
-        // ✅ برای خطای منطقی (HTTP 400/422/500) resolve کنیم
         if (err.response) {
             const parsed = parseServerResponse(err.response.data)
+            toast.error(parsed.message, { rtl: true })
             const adaptedResponse: AxiosResponse<ApiResponse<unknown>> = {
                 ...err.response,
                 data: parsed,
@@ -184,11 +166,9 @@ api.interceptors.response.use(
         const msg =
             (err.message && err.message.trim()) ||
             'خطای ناشناخته هنگام ارتباط با سرور.'
+        toast.error(msg, { rtl: true })
         return Promise.reject(new Error(msg))
     }
 )
 
-/* -------------------------------------------------------------------------- */
-/* 🚀 خروجی نهایی کلاینت API                                                  */
-/* -------------------------------------------------------------------------- */
 export default api
