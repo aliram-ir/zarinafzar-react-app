@@ -5,6 +5,27 @@ import type { ApiResponse } from './apiResponse' // 💡 فرض می‌کنم Ap
 /* 📦 مدل‌های احراز هویت (Auth Models)                                       */
 /* -------------------------------------------------------------------------- */
 
+export interface LoginRequest {
+    phoneNumber: string
+    password: string
+}
+
+export interface UserInfoModel {
+    id: string
+    phoneNumber: string
+    fullName: string
+    roles: string[]
+}
+
+export interface AuthResult {
+    accessToken: string
+    refreshToken: string
+    expiresAt: string
+    sessionId?: string
+    userInfo: UserInfoModel
+}
+
+
 // ✉️ درخواست ارسال OTP
 export interface SendOtpRequest {
     phoneNumber: string
