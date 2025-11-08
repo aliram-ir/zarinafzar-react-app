@@ -16,7 +16,7 @@ export interface ApiResponse<T> {
 
 const api: AxiosInstance = axios.create({
     baseURL: 'https://localhost:7009/api/',
-    timeout: 10000,
+    timeout: 30000,
 })
 
 export function parseServerResponse<T>(response: unknown): ApiResponse<T> {
@@ -111,11 +111,11 @@ async function retryRequest<T>(
             return await requestFn()
         } catch {
             if (i === retries - 1)
-                throw new Error('☁ خطا در ارتباط با سرور (تلاش مجدد ناموفق).')
+                throw new Error('خطا در ارتباط با سرور (تلاش مجدد ناموفق).')
             await new Promise(r => setTimeout(r, delay * (i + 1)))
         }
     }
-    throw new Error('☁ خطا در ارتباط با سرور.')
+    throw new Error('خطا در ارتباط با سرور.')
 }
 
 api.interceptors.response.use(
@@ -143,13 +143,13 @@ api.interceptors.response.use(
             err.message?.includes('Network Error')
 
         if (isNetworkError) {
-            toast.error('☁ سرور در دسترس نیست.', { rtl: true })
+            toast.error('سرور در دسترس نیست.', { rtl: true })
             try {
                 return await retryRequest(() =>
                     axios.request(err.config as AxiosRequestConfig)
                 )
             } catch {
-                return Promise.reject(new Error('☁ سرور در دسترس نیست.'))
+                return Promise.reject(new Error('سرور در دسترس نیست.'))
             }
         }
 

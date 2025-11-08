@@ -127,6 +127,19 @@ export default function VerifyOtp() {
                 {isLoading ? 'در حال بررسی...' : 'تأیید'}
             </Button>
 
+            <Button
+                fullWidth
+                variant="outlined"
+                color="secondary"
+                onClick={() => {
+                    clearOtpSession() // 🧩 حذف شماره، کد تأیید و اعتبار از sessionStorage
+                    navigate('/send-otp', { replace: true }) // 🚀 انتقال به صفحه ارسال کد
+                }}
+                sx={{ mt: 2 }}
+            >
+                {'بازگشت به ارسال کد OTP'}
+            </Button>
+
             {!session.verified && (
                 <Typography align="center" color="text.secondary" sx={{ mt: 1 }}>
                     ⏳ اعتبار کد: {Math.floor(seconds / 60)}:

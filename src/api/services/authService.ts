@@ -27,6 +27,13 @@ export async function verifyOtp(payload: VerifyOtpRequest): Promise<VerifyOtpRes
     return data
 }
 
+export const checkPhoneExist = async (phoneNumber: string) => {
+    const response = await api.get('/Auth/IsExist-PhoneNumber', {
+        params: { phoneNumber },
+    })
+    return response.data
+}
+
 /**
  * 📝 تکمیل نهایی ثبت‌نام و ایجاد کاربر.
  */

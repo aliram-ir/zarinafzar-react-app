@@ -142,6 +142,7 @@ export default function CompleteRegistration() {
 
             <TextField
                 label="نام"
+                className='rtl-textfield'
                 value={firstName}
                 onChange={e => setFirstName(e.target.value)}
                 inputProps={{ dir: 'rtl' }}
@@ -150,6 +151,8 @@ export default function CompleteRegistration() {
 
             <TextField
                 label="نام خانوادگی"
+                className='rtl-textfield'
+
                 value={lastName}
                 onChange={e => setLastName(e.target.value)}
                 inputProps={{ dir: 'rtl' }}
@@ -196,10 +199,23 @@ export default function CompleteRegistration() {
                 color="primary"
                 disabled={isLoading}
                 onClick={handleSubmit}
-                sx={{ mt: 2 }}
-            >
+                sx={{ mt: 2 }}>
                 {isLoading ? 'در حال ثبت...' : 'ثبت‌نام نهایی'}
             </Button>
+
+            <Button
+                fullWidth
+                variant="outlined"
+                color="secondary"
+                onClick={() => {
+                    clearOtpSession() // 🧩 حذف شماره، کد تأیید و اعتبار از sessionStorage
+                    navigate('/send-otp', { replace: true }) // 🚀 انتقال به صفحه ارسال کد
+                }}
+                sx={{ mt: 2 }}
+            >
+                {'بازگشت به ارسال کد OTP'}
+            </Button>
+
         </Box>
     )
 }
