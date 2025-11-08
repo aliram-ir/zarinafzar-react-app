@@ -4,19 +4,17 @@ import { useEffect, useState } from 'react'
 import { Box, Button, TextField, Typography } from '@mui/material'
 import { useApiMutation } from '@/hooks/useApiMutation'
 import { completeRegistration } from '@/api/services/authService'
-import type { CompleteRegistrationRequest, CompleteRegistrationResponse } from '@/types/auth'
+import type {
+    CompleteRegistrationRequest,
+    CompleteRegistrationResponse,
+} from '@/types/auth'
 import { getOtpSession, clearOtpSession } from '@/utils/otpSession'
 import { toast } from 'react-toastify'
 
-/**
- * 🧩 صفحه‌ی تکمیل ثبت‌نام — فقط کنترل داده و اعتبارسنجی محلی
- * ✅ همه پیام‌های سرور از طریق useApiMutation مدیریت و نمایش داده می‌شوند.
- */
 export default function CompleteRegistration() {
     const navigate = useNavigate()
     const session = getOtpSession()
 
-    // 🧠 Stateها
     const [firstName, setFirstName] = useState('')
     const [lastName, setLastName] = useState('')
     const [nationalCode, setNationalCode] = useState('')
@@ -24,26 +22,27 @@ export default function CompleteRegistration() {
     const [password, setPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
 
-    // ✨ Mutation (Toastها درون هوک مدیریت می‌شوند)
     const { mutate, isLoading } = useApiMutation<
         CompleteRegistrationRequest,
         CompleteRegistrationResponse
     >(completeRegistration, {
         onSuccess: res => {
-            // ✅ فقط هدایت در صورت موفقیت واقعی
             if (res.success) {
                 clearOtpSession()
-                navigate('/')
+                navigate('/login')
             }
+        },
+        onError: () => {
+            // ❌ در صورت خطای API در همین صفحه بمان
         },
     })
 
     /* ---------------------------------------------------------------------- */
-    /* 🚦 بررسی سشن برای جلوگیری از ورود مستقیم بدون OTP                   */
+    /* 🚦 اگر بدون Verify یا Session معتبر وارد شد → به send-otp ارجاع بده */
     /* ---------------------------------------------------------------------- */
     useEffect(() => {
         if (!session?.verified) {
-            navigate('/send-otp')
+            navigate('/send-otp', { replace: true })
         }
     }, [navigate, session?.verified])
 
@@ -59,7 +58,7 @@ export default function CompleteRegistration() {
             !password.trim() ||
             !confirmPassword.trim()
         ) {
-            toast.warn('تمامی فیلدها الزامی هستند ⚠️', { rtl: true })
+            toast.warn('تمامی فیلدها الزامی هستند', { rtl: true })
             return false
         }
 
@@ -92,7 +91,7 @@ export default function CompleteRegistration() {
     const handleSubmit = () => {
         if (!session?.phone) {
             toast.error('❌ سشن معتبر یافت نشد. لطفاً مجدداً احراز هویت کنید.', { rtl: true })
-            navigate('/send-otp')
+            navigate('/send-otp', { replace: true })
             return
         }
 
@@ -133,7 +132,6 @@ export default function CompleteRegistration() {
                 تکمیل ثبت‌نام
             </Typography>
 
-            {/* شماره موبایل فقط خواندنی */}
             <TextField
                 label="شماره موبایل"
                 value={session.phone}
