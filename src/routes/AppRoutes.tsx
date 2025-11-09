@@ -2,12 +2,14 @@ import { lazy, Suspense } from 'react'
 import { Route, Routes, Navigate } from 'react-router-dom'
 import MainLayout from '@/layout/MainLayout'
 import { CircularProgress, Box } from '@mui/material'
+import ProtectedRoute from '@/routes/ProtectedRoute'
 
 // 📦 Lazy import
 const UsersList = lazy(() => import('@/pages/UsersList'))
 const SendOtp = lazy(() => import('@/pages/SendOtp'))
 const VerifyOtp = lazy(() => import('@/pages/VerifyOtp'))
 const CompleteRegistration = lazy(() => import('@/pages/CompleteRegistration'))
+const Login = lazy(() => import('@/pages/Login'))
 
 // 💫 Loader مشترک برای صفحات در حال بارگذاری
 function Loader() {
@@ -30,11 +32,12 @@ export default function AppRoutes() {
         <Routes>
             {/* تمام صفحات جهت استفاده از تم و AppBar اصلی زیر MainLayout */}
             <Route element={<MainLayout />}>
+                {/* 🔐 صفحه لاگین - بدون نیاز به احراز هویت */}
                 <Route
-                    path="/usersList"
+                    path="/login"
                     element={
                         <Suspense fallback={<Loader />}>
-                            <UsersList />
+                            <Login />
                         </Suspense>
                     }
                 />
@@ -67,8 +70,21 @@ export default function AppRoutes() {
                     }
                 />
 
+                {/* 🔒 صفحات محافظت شده - نیاز به لاگین */}
+                <Route
+                    path="/usersList"
+                    element={
+                        <ProtectedRoute>
+                            <Suspense fallback={<Loader />}>
+                                <UsersList />
+                            </Suspense>
+                        </ProtectedRoute>
+                    }
+                />
+
                 {/* ⚠️ مسیر پیش‌فرض */}
-                <Route path="*" element={<Navigate to="/send-otp" replace />} />
+                <Route path="/" element={<Navigate to="/login" replace />} />
+                <Route path="*" element={<Navigate to="/login" replace />} />
             </Route>
         </Routes>
     )

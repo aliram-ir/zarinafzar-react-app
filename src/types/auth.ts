@@ -10,6 +10,16 @@ export interface LoginRequest {
     password: string
 }
 
+export interface RefreshTokenRequest {
+    userId: string
+    refreshToken: string
+}
+
+export interface RevokeTokenRequest {
+    userId: string
+    refreshToken: string
+}
+
 export interface UserInfoModel {
     id: string
     phoneNumber: string

@@ -1,165 +1,128 @@
-// 📁 مسیر: src/pages/Login.tsx
-import { useState } from 'react'
+// 📁 src/pages/Login.tsx
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
     Box,
-    Button,
     TextField,
+    Button,
     Typography,
-    IconButton,
-    InputAdornment,
+    Paper,
+    CircularProgress,
 } from '@mui/material'
-import { Visibility, VisibilityOff, Login as LoginIcon } from '@mui/icons-material'
+import { login } from '@/api/services/authService'
+import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'react-toastify'
-import { useApiMutation } from '@/hooks/useApiMutation'
-import api, { type ApiResponse } from '@/api/apiService'
 
-interface LoginModel {
-    phoneNumber: string
-    password: string
-}
-
-interface UserInfoModel {
-    id: string
-    phoneNumber: string
-    fullName: string
-    roles: string[]
-}
-
-interface AuthResult {
-    accessToken: string
-    refreshToken: string
-    expiresAt: string
-    sessionId?: string
-    userInfo: UserInfoModel
-}
-
-/**
- * ✅ صفحه ورود کاربر
- * هماهنگ با ساختار مرکزی Toast و apiService
- * از طرق متد POST → api/Auth/login
- */
-export default function Login() {
-    const navigate = useNavigate()
-    const [phone, setPhone] = useState('')
+const Login: React.FC = () => {
+    const [phoneNumber, setPhoneNumber] = useState('')
     const [password, setPassword] = useState('')
-    const [showPassword, setShowPassword] = useState(false)
+    const [isLoading, setIsLoading] = useState(false)
 
-    const { mutate, isLoading } = useApiMutation<LoginModel, ApiResponse<AuthResult>>(
-        async payload => {
-            const { data } = await api.post<ApiResponse<AuthResult>>('Auth/login', payload)
-            return data
-        },
-        {
-            onSuccess: res => {
-                if (res.success && res.data) {
-                    const { accessToken, refreshToken, expiresAt, userInfo } = res.data
-                    localStorage.setItem('accessToken', accessToken)
-                    localStorage.setItem('refreshToken', refreshToken)
-                    localStorage.setItem('expiresAt', expiresAt)
-                    localStorage.setItem('user', JSON.stringify(userInfo))
-                    toast.success(res.message || 'ورود با موفقیت انجام شد ✅', { rtl: true })
-                    navigate('/', { replace: true })
-                } else {
-                    toast.error(res.message || 'نام کاربری یا رمز عبور اشتباه است ❌', { rtl: true })
-                }
-            },
-            onError: err => {
-                const msg =
-                    err instanceof Error && err.message
-                        ? err.message
-                        : 'خطا در ورود به سیستم.'
-                toast.error(msg, { rtl: true })
-            },
-        }
-    )
+    const { setUser, refreshAuth } = useAuth()
+    const navigate = useNavigate()
 
-    const validateForm = (): boolean => {
-        if (!/^09\d{9}$/.test(phone)) {
-            toast.warn('شماره موبایل معتبر نیست.', { rtl: true })
-            return false
-        }
-        if (!password || password.length < 6) {
-            toast.warn('رمز عبور باید حداقل ۶ کاراکتر باشد.', { rtl: true })
-            return false
-        }
-        return true
-    }
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault()
 
-    const handleSubmit = () => {
-        if (!validateForm()) return
-        mutate({ phoneNumber: phone, password })
+        if (!phoneNumber || !password) {
+            toast.error('لطفاً تمام فیلدها را پر کنید', { rtl: true })
+            return
+        }
+
+        setIsLoading(true)
+
+        try {
+            const result = await login(phoneNumber, password)
+
+            if (result.success && result.data) {
+                // ✅ ذخیره AccessToken
+                localStorage.setItem('accessToken', result.data.accessToken)
+
+                // ✅ ست کردن اطلاعات کاربر در Context
+                setUser(result.data.userInfo)
+
+                // ✅ بارگذاری مجدد اطلاعات
+                await refreshAuth()
+
+                toast.success('ورود موفقیت‌آمیز بود!', { rtl: true })
+                navigate('/usersList')
+            } else {
+                toast.error(result.message || 'خطا در ورود', { rtl: true })
+            }
+        } catch (error) {
+            console.error('خطا در ورود:', error)
+            toast.error('خطا در برقراری ارتباط با سرور', { rtl: true })
+        } finally {
+            setIsLoading(false)
+        }
     }
 
     return (
         <Box
             sx={{
-                p: 4,
-                maxWidth: 400,
-                mx: 'auto',
                 display: 'flex',
-                flexDirection: 'column',
-                gap: 2,
+                justifyContent: 'center',
+                alignItems: 'center',
+                minHeight: '80vh',
+                p: 2,
             }}
         >
-            <Typography variant="h6" textAlign="center" sx={{ mb: 2 }}>
-                ورود به حساب کاربری
-            </Typography>
-
-            <TextField
-                label="شماره موبایل"
-                value={phone}
-                onChange={e => setPhone(e.target.value.trim())}
-                inputProps={{
-                    dir: 'ltr',
-                    inputMode: 'numeric',
-                    pattern: '[0-9]*',
-                    maxLength: 11,
+            <Paper
+                elevation={3}
+                sx={{
+                    p: 4,
+                    maxWidth: 400,
+                    width: '100%',
                 }}
-                fullWidth
-            />
-
-            <TextField
-                label="رمز عبور"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                fullWidth
-                inputProps={{ dir: 'ltr' }}
-                InputProps={{
-                    endAdornment: (
-                        <InputAdornment position="end">
-                            <IconButton
-                                onClick={() => setShowPassword(!showPassword)}
-                                edge="end"
-                            >
-                                {showPassword ? <VisibilityOff /> : <Visibility />}
-                            </IconButton>
-                        </InputAdornment>
-                    ),
-                }}
-            />
-
-            <Button
-                variant="contained"
-                color="primary"
-                size="large"
-                onClick={handleSubmit}
-                disabled={isLoading}
-                startIcon={<LoginIcon sx={{ ml: 1 }} />}
-                sx={{ mt: 2 }}
             >
-                {isLoading ? 'در حال ورود...' : 'ورود'}
-            </Button>
+                <Typography variant="h5" component="h1" gutterBottom textAlign="center">
+                    ورود به سیستم
+                </Typography>
 
-            <Button
-                variant="text"
-                color="secondary"
-                sx={{ mt: 1 }}
-                onClick={() => navigate('/send-otp')}
-            >
-                ثبت‌نام کاربر جدید
-            </Button>
+                <form onSubmit={handleLogin}>
+                    <TextField
+                        fullWidth
+                        label="شماره تلفن"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        margin="normal"
+                        dir="ltr"
+                        disabled={isLoading}
+                    />
+
+                    <TextField
+                        fullWidth
+                        type="password"
+                        label="رمز عبور"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        margin="normal"
+                        disabled={isLoading}
+                    />
+
+                    <Button
+                        fullWidth
+                        type="submit"
+                        variant="contained"
+                        disabled={isLoading}
+                        sx={{ mt: 3 }}
+                    >
+                        {isLoading ? <CircularProgress size={24} /> : 'ورود'}
+                    </Button>
+
+                    <Button
+                        fullWidth
+                        variant="text"
+                        onClick={() => navigate('/send-otp')}
+                        disabled={isLoading}
+                        sx={{ mt: 2 }}
+                    >
+                        ثبت‌نام با OTP
+                    </Button>
+                </form>
+            </Paper>
         </Box>
     )
 }
+
+export default Login

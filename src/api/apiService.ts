@@ -17,6 +17,7 @@ export interface ApiResponse<T> {
 const api: AxiosInstance = axios.create({
     baseURL: 'https://localhost:7009/api/',
     timeout: 30000,
+    withCredentials: true, // ✅ برای ارسال و دریافت کوکی‌ها
 })
 
 export function parseServerResponse<T>(response: unknown): ApiResponse<T> {
@@ -118,6 +119,40 @@ async function retryRequest<T>(
     throw new Error('خطا در ارتباط با سرور.')
 }
 
+// ✅ صف درخواست‌های در حال انتظار برای refresh
+let isRefreshing = false
+let failedQueue: Array<{
+    resolve: (token: string) => void
+    reject: (error: unknown) => void
+}> = []
+
+/**
+ * پردازش صف درخواست‌های معلق
+ */
+const processQueue = (error: unknown = null, token: string | null = null) => {
+    failedQueue.forEach(prom => {
+        if (error) {
+            prom.reject(error)
+        } else if (token) {
+            prom.resolve(token)
+        }
+    })
+    failedQueue = []
+}
+
+// ✅ Request Interceptor: اضافه کردن AccessToken به هدرها
+api.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('accessToken')
+        if (token && config.headers) {
+            config.headers.Authorization = `Bearer ${token}`
+        }
+        return config
+    },
+    (error) => Promise.reject(error)
+)
+
+// ✅ Response Interceptor: مدیریت خطا 401 و Refresh Token
 api.interceptors.response.use(
     <T>(response: AxiosResponse<ApiResponse<T>>) => {
         const parsed = parseServerResponse<T>(response.data)
@@ -125,8 +160,12 @@ api.interceptors.response.use(
             ...response,
             data: parsed,
         }
-        // ✅ فقط خطاها نمایش داده می‌شوند (موفقیت در useApiMutation)
-        if (!parsed.success) toast.error(parsed.message, { rtl: true })
+
+        // ✅ فقط خطاها نمایش داده می‌شوند
+        if (!parsed.success) {
+            toast.error(parsed.message, { rtl: true })
+        }
+
         return typedResponse
     },
     async (error: unknown) => {
@@ -134,9 +173,73 @@ api.interceptors.response.use(
             code?: string
             message?: string
             response?: AxiosResponse
-            config?: AxiosRequestConfig
+            config?: AxiosRequestConfig & { _retry?: boolean }
         }
 
+        const originalRequest = err.config
+
+        // ✅ مدیریت خطای 401 (Unauthorized)
+        if (err.response?.status === 401 && originalRequest && !originalRequest._retry) {
+            if (isRefreshing) {
+                // اگر در حال refresh هستیم، درخواست را به صف اضافه می‌کنیم
+                return new Promise((resolve, reject) => {
+                    failedQueue.push({ resolve, reject })
+                })
+                    .then(token => {
+                        if (originalRequest.headers) {
+                            originalRequest.headers.Authorization = `Bearer ${token}`
+                        }
+                        return axios.request(originalRequest)
+                    })
+                    .catch(err => Promise.reject(err))
+            }
+
+            originalRequest._retry = true
+            isRefreshing = true
+
+            try {
+                // تلاش برای refresh token
+                const response = await axios.post<ApiResponse<{
+                    accessToken: string
+                    expiresAt: string
+                }>>(
+                    'https://localhost:7009/api/Auth/refresh-token',
+                    {},
+                    { withCredentials: true }
+                )
+
+                const parsed = parseServerResponse<{
+                    accessToken: string
+                    expiresAt: string
+                }>(response.data)
+
+                if (parsed.success && parsed.data?.accessToken) {
+                    const newToken = parsed.data.accessToken
+                    localStorage.setItem('accessToken', newToken)
+
+                    // ✅ پردازش صف
+                    processQueue(null, newToken)
+
+                    // ✅ تلاش مجدد درخواست اصلی
+                    if (originalRequest.headers) {
+                        originalRequest.headers.Authorization = `Bearer ${newToken}`
+                    }
+                    return axios.request(originalRequest)
+                } else {
+                    throw new Error('Refresh token failed')
+                }
+            } catch (refreshError) {
+                // ✅ در صورت خطا، کاربر را logout کنیم
+                processQueue(refreshError, null)
+                localStorage.removeItem('accessToken')
+                window.location.href = '/login'
+                return Promise.reject(refreshError)
+            } finally {
+                isRefreshing = false
+            }
+        }
+
+        // ✅ مدیریت خطاهای شبکه
         const isNetworkError =
             err.code === 'ERR_NETWORK' ||
             !err.response ||
@@ -153,6 +256,7 @@ api.interceptors.response.use(
             }
         }
 
+        // ✅ مدیریت سایر خطاها
         if (err.response) {
             const parsed = parseServerResponse(err.response.data)
             toast.error(parsed.message, { rtl: true })
