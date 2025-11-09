@@ -1,0 +1,267 @@
+// 📁 src/layout/DashboardLayout.tsx
+import React, { useState } from 'react'
+import { Outlet, useNavigate, useLocation } from 'react-router-dom'
+import {
+    Box,
+    Drawer,
+    AppBar,
+    Toolbar,
+    List,
+    Typography,
+    Divider,
+    IconButton,
+    ListItem,
+    ListItemButton,
+    ListItemIcon,
+    ListItemText,
+    Avatar,
+    Menu,
+    MenuItem,
+} from '@mui/material'
+import {
+    Menu as MenuIcon,
+    ChevronLeft as ChevronLeftIcon,
+    Dashboard as DashboardIcon,
+    People as PeopleIcon,
+    Settings as SettingsIcon,
+    Brightness4 as DarkIcon,
+    Brightness7 as LightIcon,
+    AccountCircle,
+} from '@mui/icons-material'
+import { useThemeContext } from '@/hooks/useThemeMode'
+import { useAuth } from '@/hooks/useAuth'
+
+/**
+ * 🎨 تنظیمات عرض Drawer
+ */
+const DRAWER_WIDTH = 240
+
+/**
+ * 📋 آیتم‌های منوی کناری
+ */
+const menuItems = [
+    { text: 'داشبورد', icon: <DashboardIcon />, path: '/dashboard' },
+    { text: 'لیست کاربران', icon: <PeopleIcon />, path: '/dashboard/users' },
+    { text: 'تنظیمات', icon: <SettingsIcon />, path: '/dashboard/settings' },
+]
+
+/**
+ * 🏗️ کامپوننت لایوت داشبورد
+ */
+const DashboardLayout: React.FC = () => {
+    const { mode, toggleTheme } = useThemeContext()
+    const { user, logout } = useAuth()
+    const navigate = useNavigate()
+    const location = useLocation()
+
+    // 📌 وضعیت باز/بسته بودن Drawer
+    const [drawerOpen, setDrawerOpen] = useState(true)
+
+    // 📌 وضعیت منوی کاربر
+    const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
+
+    /**
+     * تغییر وضعیت Drawer
+     */
+    const toggleDrawer = () => {
+        setDrawerOpen(!drawerOpen)
+    }
+
+    /**
+     * باز کردن منوی کاربر
+     */
+    const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
+        setAnchorEl(event.currentTarget)
+    }
+
+    /**
+     * بستن منوی کاربر
+     */
+    const handleClose = () => {
+        setAnchorEl(null)
+    }
+
+    /**
+     * خروج از حساب
+     */
+    const handleLogout = async () => {
+        handleClose()
+        await logout()
+        navigate('/login')
+    }
+
+    return (
+        <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+            {/* 🔝 AppBar بالای صفحه */}
+            <AppBar
+                position="fixed"
+                sx={{
+                    zIndex: (theme) => theme.zIndex.drawer + 1,
+                }}
+            >
+                <Toolbar>
+                    {/* دکمه باز/بسته کردن Drawer */}
+                    <IconButton
+                        color="inherit"
+                        aria-label="toggle drawer"
+                        onClick={toggleDrawer}
+                        edge="start"
+                        sx={{ mr: 2 }}
+                    >
+                        {drawerOpen ? <ChevronLeftIcon /> : <MenuIcon />}
+                    </IconButton>
+
+                    {/* عنوان */}
+                    <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+                        پنل مدیریت زرین‌افزار
+                    </Typography>
+
+                    {/* نام کاربر */}
+                    {user && (
+                        <Typography variant="body2" sx={{ mr: 2, display: { xs: 'none', sm: 'block' } }}>
+                            {user.fullName || user.phoneNumber}
+                        </Typography>
+                    )}
+
+                    {/* دکمه تغییر تم */}
+                    <IconButton color="inherit" onClick={toggleTheme}>
+                        {mode === 'dark' ? <LightIcon /> : <DarkIcon />}
+                    </IconButton>
+
+                    {/* آیکون کاربر */}
+                    <IconButton
+                        size="large"
+                        onClick={handleMenu}
+                        color="inherit"
+                    >
+                        <AccountCircle />
+                    </IconButton>
+
+                    {/* منوی کاربر */}
+                    <Menu
+                        anchorEl={anchorEl}
+                        open={Boolean(anchorEl)}
+                        onClose={handleClose}
+                        anchorOrigin={{
+                            vertical: 'bottom',
+                            horizontal: 'right',
+                        }}
+                        transformOrigin={{
+                            vertical: 'top',
+                            horizontal: 'right',
+                        }}
+                        sx={{ mt: 1 }}
+                    >
+                        <MenuItem onClick={() => {
+                            handleClose()
+                            navigate('/dashboard/profile')
+                        }}>
+                            پروفایل
+                        </MenuItem>
+                        <MenuItem onClick={handleLogout}>
+                            خروج
+                        </MenuItem>
+                    </Menu>
+                </Toolbar>
+            </AppBar>
+
+            {/* 📂 Drawer کناری */}
+            <Drawer
+                variant="permanent"
+                open={drawerOpen}
+                sx={{
+                    width: drawerOpen ? DRAWER_WIDTH : 60,
+                    flexShrink: 0,
+                    whiteSpace: 'nowrap',
+                    boxSizing: 'border-box',
+                    transition: (theme) =>
+                        theme.transitions.create('width', {
+                            easing: theme.transitions.easing.sharp,
+                            duration: theme.transitions.duration.enteringScreen,
+                        }),
+                    '& .MuiDrawer-paper': {
+                        width: drawerOpen ? DRAWER_WIDTH : 60,
+                        transition: (theme) =>
+                            theme.transitions.create('width', {
+                                easing: theme.transitions.easing.sharp,
+                                duration: theme.transitions.duration.enteringScreen,
+                            }),
+                        overflowX: 'hidden',
+                    },
+                }}
+            >
+                {/* فضای خالی برای AppBar */}
+                <Toolbar />
+
+                <Divider />
+
+                {/* پروفایل کاربر در بالای Drawer */}
+                {drawerOpen && (
+                    <Box sx={{ p: 2, textAlign: 'center' }}>
+                        <Avatar
+                            sx={{
+                                width: 64,
+                                height: 64,
+                                mx: 'auto',
+                                mb: 1,
+                                bgcolor: 'primary.main',
+                            }}
+                        >
+                            {user?.fullName?.charAt(0) || 'U'}
+                        </Avatar>
+                        <Typography variant="body2" noWrap>
+                            {user?.fullName || 'کاربر'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" noWrap>
+                            {user?.phoneNumber}
+                        </Typography>
+                    </Box>
+                )}
+
+                <Divider />
+
+                {/* لیست منوها */}
+                <List>
+                    {menuItems.map((item) => (
+                        <ListItem key={item.text} disablePadding>
+                            <ListItemButton
+                                selected={location.pathname === item.path}
+                                onClick={() => navigate(item.path)}
+                                sx={{
+                                    minHeight: 48,
+                                    justifyContent: drawerOpen ? 'initial' : 'center',
+                                    px: 2.5,
+                                }}
+                            >
+                                <ListItemIcon
+                                    sx={{
+                                        minWidth: 0,
+                                        mr: drawerOpen ? 3 : 'auto',
+                                        justifyContent: 'center',
+                                    }}
+                                >
+                                    {item.icon}
+                                </ListItemIcon>
+                                {drawerOpen && <ListItemText primary={item.text} />}
+                            </ListItemButton>
+                        </ListItem>
+                    ))}
+                </List>
+            </Drawer>
+
+            {/* 📄 محتوای اصلی */}
+            <Box
+                component="main"
+                sx={{
+                    flexGrow: 1,
+                    p: 3,
+                    mt: 8, // فاصله از بالا برای AppBar
+                }}
+            >
+                <Outlet />
+            </Box>
+        </Box>
+    )
+}
+
+export default DashboardLayout

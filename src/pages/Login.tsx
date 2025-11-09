@@ -45,7 +45,9 @@ const Login: React.FC = () => {
             setUser(result.userInfo)
 
             toast.success('ورود موفقیت‌آمیز بود!', { rtl: true })
-            navigate('/usersList')
+
+            // ✅ هدایت به داشبورد بعد از لاگین موفق
+            navigate('/dashboard')
         } catch (error) {
             console.error('خطا در ورود:', error)
             // خطا توسط apiService نمایش داده می‌شود
@@ -85,6 +87,7 @@ const Login: React.FC = () => {
                         margin="normal"
                         dir="ltr"
                         disabled={isLoading}
+                        placeholder="09123456789"
                     />
 
                     <TextField
@@ -123,7 +126,7 @@ const Login: React.FC = () => {
                         variant="text"
                         onClick={() => navigate('/send-otp')}
                         disabled={isLoading}
-                        sx={{ mt: 2 }}
+                        sx={{ mt: 1 }}
                     >
                         ثبت‌نام کنید
                     </Button>
