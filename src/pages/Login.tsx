@@ -18,9 +18,12 @@ const Login: React.FC = () => {
     const [password, setPassword] = useState('')
     const [isLoading, setIsLoading] = useState(false)
 
-    const { setUser, refreshAuth } = useAuth()
+    const { setUser } = useAuth()
     const navigate = useNavigate()
 
+    /**
+     * هندلر ورود به سیستم
+     */
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
 
@@ -32,26 +35,20 @@ const Login: React.FC = () => {
         setIsLoading(true)
 
         try {
+            // ✅ login از apiHelper استفاده می‌کنه و خودش ApiResponse رو parse می‌کنه
             const result = await login(phoneNumber, password)
 
-            if (result.success && result.data) {
-                // ✅ ذخیره AccessToken
-                localStorage.setItem('accessToken', result.data.accessToken)
+            // ✅ ذخیره AccessToken
+            localStorage.setItem('accessToken', result.accessToken)
 
-                // ✅ ست کردن اطلاعات کاربر در Context
-                setUser(result.data.userInfo)
+            // ✅ ست کردن کاربر در Context
+            setUser(result.userInfo)
 
-                // ✅ بارگذاری مجدد اطلاعات
-                await refreshAuth()
-
-                toast.success('ورود موفقیت‌آمیز بود!', { rtl: true })
-                navigate('/usersList')
-            } else {
-                toast.error(result.message || 'خطا در ورود', { rtl: true })
-            }
+            toast.success('ورود موفقیت‌آمیز بود!', { rtl: true })
+            navigate('/usersList')
         } catch (error) {
             console.error('خطا در ورود:', error)
-            toast.error('خطا در برقراری ارتباط با سرور', { rtl: true })
+            // خطا توسط apiService نمایش داده می‌شود
         } finally {
             setIsLoading(false)
         }
@@ -97,6 +94,7 @@ const Login: React.FC = () => {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         margin="normal"
+                        dir="ltr"
                         disabled={isLoading}
                     />
 
@@ -117,7 +115,17 @@ const Login: React.FC = () => {
                         disabled={isLoading}
                         sx={{ mt: 2 }}
                     >
-                        ثبت‌نام با OTP
+                        رمز عبور را فراموش کردم
+                    </Button>
+
+                    <Button
+                        fullWidth
+                        variant="text"
+                        onClick={() => navigate('/send-otp')}
+                        disabled={isLoading}
+                        sx={{ mt: 2 }}
+                    >
+                        ثبت‌نام کنید
                     </Button>
                 </form>
             </Paper>

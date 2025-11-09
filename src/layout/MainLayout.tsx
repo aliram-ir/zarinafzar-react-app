@@ -16,12 +16,11 @@ import {
     Brightness7 as LightIcon,
     AccountCircle,
 } from '@mui/icons-material'
-import { useThemeMode } from '@/hooks/useThemeMode'
+import { useThemeContext } from '@/hooks/useThemeMode'
 import { useAuth } from '@/hooks/useAuth'
 
-
 const MainLayout: React.FC = () => {
-    const { mode, toggleTheme } = useThemeMode()
+    const { mode, toggleTheme } = useThemeContext()
     const { user, isAuthenticated, logout } = useAuth()
     const navigate = useNavigate()
 
@@ -29,10 +28,12 @@ const MainLayout: React.FC = () => {
 
     const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
         setAnchorEl(event.currentTarget)
+        console.log('🔘 Menu opened') // 👈 Debug
     }
 
     const handleClose = () => {
         setAnchorEl(null)
+        console.log('❌ Menu closed') // 👈 Debug
     }
 
     const handleLogout = async () => {
@@ -41,15 +42,20 @@ const MainLayout: React.FC = () => {
         navigate('/login')
     }
 
+    const handleThemeToggle = () => {
+        console.log('🔘 Theme button clicked, current mode:', mode)
+        toggleTheme()
+    }
+
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-            <AppBar position="sticky">
+            <AppBar position="static">
                 <Toolbar>
                     <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-                        پنل مدیریت
+                        پنل مدیریت زرین‌افزار
                     </Typography>
 
-                    {/* نمایش نام کاربر اگر لاگین کرده */}
+                    {/* نمایش نام کاربر */}
                     {isAuthenticated && user && (
                         <Typography variant="body2" sx={{ mr: 2 }}>
                             {user.fullName || user.phoneNumber}
@@ -57,7 +63,7 @@ const MainLayout: React.FC = () => {
                     )}
 
                     {/* دکمه تغییر تم */}
-                    <IconButton color="inherit" onClick={toggleTheme}>
+                    <IconButton color="inherit" onClick={handleThemeToggle}>
                         {mode === 'dark' ? <LightIcon /> : <DarkIcon />}
                     </IconButton>
 
@@ -68,25 +74,40 @@ const MainLayout: React.FC = () => {
                                 size="large"
                                 onClick={handleMenu}
                                 color="inherit"
+                                aria-label="account menu"
+                                aria-controls="user-menu"
+                                aria-haspopup="true"
                             >
                                 <AccountCircle />
                             </IconButton>
                             <Menu
+                                id="user-menu"
                                 anchorEl={anchorEl}
                                 open={Boolean(anchorEl)}
                                 onClose={handleClose}
                                 anchorOrigin={{
                                     vertical: 'bottom',
-                                    horizontal: 'left',
+                                    horizontal: 'right', // 👈 تغییر از left به right
+                                }}
+                                transformOrigin={{
+                                    vertical: 'top',
+                                    horizontal: 'right', // 👈 اضافه شد
+                                }}
+                                sx={{
+                                    mt: 1, // 👈 فاصله از بالا
                                 }}
                             >
-                                <MenuItem onClick={() => {
-                                    handleClose()
-                                    navigate('/usersList')
-                                }}>
+                                <MenuItem
+                                    onClick={() => {
+                                        handleClose()
+                                        navigate('/usersList')
+                                    }}
+                                >
                                     لیست کاربران
                                 </MenuItem>
-                                <MenuItem onClick={handleLogout}>خروج</MenuItem>
+                                <MenuItem onClick={handleLogout}>
+                                    خروج
+                                </MenuItem>
                             </Menu>
                         </>
                     ) : (
@@ -98,7 +119,7 @@ const MainLayout: React.FC = () => {
             </AppBar>
 
             {/* محتوای اصلی */}
-            <Box component="main" sx={{ flexGrow: 1 }}>
+            <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
                 <Outlet />
             </Box>
         </Box>

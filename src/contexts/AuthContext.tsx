@@ -24,14 +24,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
  * Provider اصلی احراز هویت
  */
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-
-    // وضعیت کاربر لاگین شده فعلی
     const [user, setUser] = useState<UserDto | null>(null)
-
-    // وضعیت لود اولیه
     const [isLoading, setIsLoading] = useState(true)
 
-    // رفرش کاربر از سرور
+    /**
+     * بارگذاری اطلاعات کاربر از سرور
+     */
     const refreshAuth = useCallback(async () => {
         const token = localStorage.getItem('accessToken')
 
@@ -42,15 +40,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         try {
-            const result = await getCurrentUser()
-
-            if (result.success && result.data) {
-                setUser(result.data)
-            } else {
-                setUser(null)
-                localStorage.removeItem('accessToken')
-            }
-        } catch {
+            // ✅ getCurrentUser از apiHelper استفاده می‌کنه که خودش ApiResponse رو هندل می‌کنه
+            const userData = await getCurrentUser()
+            setUser(userData)
+        } catch (error) {
+            console.error('خطا در بارگذاری اطلاعات کاربر:', error)
             setUser(null)
             localStorage.removeItem('accessToken')
         } finally {
@@ -58,18 +52,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     }, [])
 
-    // خروج کاربر
+    /**
+     * خروج از حساب کاربری
+     */
     const logout = useCallback(async () => {
         try {
             await logoutService()
-        }
-        finally {
+        } catch (error) {
+            console.error('خطا در خروج:', error)
+        } finally {
             setUser(null)
             localStorage.removeItem('accessToken')
         }
     }, [])
 
-    // بارگذاری اولیه
+    /**
+     * بارگذاری اولیه در هنگام mount
+     */
     useEffect(() => {
         refreshAuth()
     }, [refreshAuth])
@@ -83,11 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         refreshAuth,
     }
 
-    return (
-        <AuthContext.Provider value={value}>
-            {children}
-        </AuthContext.Provider>
-    )
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export default AuthContext

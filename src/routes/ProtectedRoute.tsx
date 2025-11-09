@@ -1,22 +1,20 @@
-// 📁 src/components/ProtectedRoute.tsx
+// 📁 src/routes/ProtectedRoute.tsx
 import React from 'react'
-import { Navigate, useLocation } from 'react-router-dom'
-import { Box, CircularProgress } from '@mui/material'
-import { useAuth } from "@/hooks/useAuth"
+import { Navigate } from 'react-router-dom'
+import { useAuth } from '@/hooks/useAuth'
+import { CircularProgress, Box } from '@mui/material'
 
 interface ProtectedRouteProps {
     children: React.ReactNode
 }
 
 /**
- * کامپوننت محافظت از روت‌ها
- * اگر کاربر لاگین نکرده بود، به صفحه لاگین هدایت می‌شود
+ * کامپوننت محافظت از روت‌های احراز هویت شده
  */
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     const { isAuthenticated, isLoading } = useAuth()
-    const location = useLocation()
 
-    // در حال بارگذاری
+    // نمایش لودینگ در حال بارگذاری
     if (isLoading) {
         return (
             <Box
@@ -32,12 +30,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
         )
     }
 
-    // اگر لاگین نکرده، به صفحه لاگین هدایت شود
+    // اگر احراز نشده، به صفحه لاگین برو
     if (!isAuthenticated) {
-        return <Navigate to="/login" state={{ from: location }} replace />
+        return <Navigate to="/login" replace />
     }
 
-    // اگر لاگین کرده، محتوا نمایش داده شود
     return <>{children}</>
 }
 

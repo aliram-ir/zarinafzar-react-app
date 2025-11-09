@@ -1,29 +1,23 @@
 // 📁 src/App.tsx
+import React from 'react'
 import { BrowserRouter } from 'react-router-dom'
-import AppRoutes from '@/routes/AppRoutes'
-import { ToastContainer } from 'react-toastify'
-import 'react-toastify/dist/ReactToastify.css'
-import { ThemeModeProvider } from '@/providers/ThemeModeProvider'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { ThemeModeProvider } from '@/providers/ThemeModeProvider'
+import ToastProvider from '@/components/ToastProvider'
+import AppRoutes from '@/routes/AppRoutes'
 
-export default function App() {
+const App: React.FC = () => {
   return (
-    <ThemeModeProvider>
-      <AuthProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-
-        <ToastContainer
-          position="bottom-left"
-          rtl
-          newestOnTop
-          autoClose={4000}
-          pauseOnHover
-          draggable
-          theme="colored"
-        />
-      </AuthProvider>
-    </ThemeModeProvider>
+    <BrowserRouter>
+      <ThemeModeProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <AppRoutes />
+          </AuthProvider>
+        </ToastProvider>
+      </ThemeModeProvider>
+    </BrowserRouter>
   )
 }
+
+export default App
