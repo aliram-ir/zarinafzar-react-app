@@ -3,12 +3,14 @@ import { useContext } from 'react'
 import AuthContext from '@/contexts/AuthContext'
 
 /**
- * هوک دسترسی به کانتکست احراز هویت
+ * 🪝 هوک دسترسی به احراز هویت
  */
 export const useAuth = () => {
     const context = useContext(AuthContext)
-    if (!context) {
-        throw new Error('useAuth باید در داخل AuthProvider استفاده شود')
+
+    if (context === undefined) {
+        throw new Error('useAuth must be used within an AuthProvider')
     }
+
     return context
 }

@@ -1,11 +1,6 @@
 // 📁 src/pages/Panel/DashboardHome.tsx
 import React from 'react'
-import {
-    Box,
-    Typography,
-    Paper,
-    GridLegacy as Grid, // ✅ استفاده از GridLegacy با alias Grid
-} from '@mui/material'
+import { Box, Typography, Paper } from '@mui/material'
 import {
     People as PeopleIcon,
     ShoppingCart as ShoppingCartIcon,
@@ -63,37 +58,16 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color }) => (
  * 🏠 صفحه اصلی داشبورد
  */
 const DashboardHome: React.FC = () => {
-    // ✅ داده‌های فرضی برای نمایش
     const stats = [
-        {
-            title: 'کل کاربران',
-            value: '1,234',
-            icon: <PeopleIcon fontSize="large" />,
-            color: '#1976d2',
-        },
-        {
-            title: 'سفارشات امروز',
-            value: '89',
-            icon: <ShoppingCartIcon fontSize="large" />,
-            color: '#2e7d32',
-        },
-        {
-            title: 'درآمد ماه',
-            value: '45M',
-            icon: <MoneyIcon fontSize="large" />,
-            color: '#ed6c02',
-        },
-        {
-            title: 'رشد فروش',
-            value: '+12%',
-            icon: <TrendingUpIcon fontSize="large" />,
-            color: '#9c27b0',
-        },
+        { title: 'کل کاربران', value: '1,234', icon: <PeopleIcon fontSize="large" />, color: '#1976d2' },
+        { title: 'سفارشات امروز', value: '89', icon: <ShoppingCartIcon fontSize="large" />, color: '#2e7d32' },
+        { title: 'درآمد ماه', value: '45M', icon: <MoneyIcon fontSize="large" />, color: '#ed6c02' },
+        { title: 'رشد فروش', value: '+12%', icon: <TrendingUpIcon fontSize="large" />, color: '#9c27b0' },
     ]
 
     return (
         <Box>
-            {/* 📌 هدر صفحه */}
+            {/* هدر داشبورد */}
             <Typography variant="h4" fontWeight="bold" gutterBottom>
                 داشبورد
             </Typography>
@@ -101,39 +75,40 @@ const DashboardHome: React.FC = () => {
                 خوش آمدید! اینجا خلاصه‌ای از فعالیت‌های شماست.
             </Typography>
 
-            {/* 📊 کارت‌های آماری */}
-            <Grid container spacing={3} mb={4}>
+            {/* کارت‌های آماری با Flex */}
+            <Box display="flex" flexWrap="wrap" gap={3} mb={4}>
                 {stats.map((stat, index) => (
-                    <Grid item xs={12} sm={6} md={3} key={index}>
+                    <Box key={index} flex={{ xs: '1 1 100%', sm: '1 1 48%', md: '1 1 23%' }}>
                         <StatCard {...stat} />
-                    </Grid>
+                    </Box>
                 ))}
-            </Grid>
+            </Box>
 
-            {/* 📈 بخش نمودارها */}
-            <Grid container spacing={3}>
+            {/* بخش نمودارها و فعالیت‌ها */}
+            <Box display="flex" flexWrap="wrap" gap={3}>
                 {/* نمودار فروش */}
-                <Grid item xs={12} md={8}>
+                <Box flex={{ xs: '1 1 100%', md: '1 1 65%' }}>
                     <Paper elevation={3} sx={{ p: 3, height: 400 }}>
                         <Typography variant="h6" gutterBottom>
                             نمودار فروش ماهانه
                         </Typography>
                         <Box
                             sx={{
+                                height: '100%',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                height: '80%',
                                 color: 'text.secondary',
                             }}
                         >
-                            نمودار اینجا قرار می‌گیرد (Chart.js / Recharts)
+                            {/* جایگزین با Recharts / Chart.js */}
+                            نمودار اینجا قرار می‌گیرد
                         </Box>
                     </Paper>
-                </Grid>
+                </Box>
 
                 {/* آخرین فعالیت‌ها */}
-                <Grid item xs={12} md={4}>
+                <Box flex={{ xs: '1 1 100%', md: '1 1 32%' }}>
                     <Paper elevation={3} sx={{ p: 3, height: 400 }}>
                         <Typography variant="h6" gutterBottom>
                             آخرین فعالیت‌ها
@@ -148,9 +123,7 @@ const DashboardHome: React.FC = () => {
                                         borderColor: 'divider',
                                     }}
                                 >
-                                    <Typography variant="body2">
-                                        فعالیت شماره {item}
-                                    </Typography>
+                                    <Typography variant="body2">فعالیت شماره {item}</Typography>
                                     <Typography variant="caption" color="text.secondary">
                                         2 ساعت پیش
                                     </Typography>
@@ -158,8 +131,8 @@ const DashboardHome: React.FC = () => {
                             ))}
                         </Box>
                     </Paper>
-                </Grid>
-            </Grid>
+                </Box>
+            </Box>
         </Box>
     )
 }

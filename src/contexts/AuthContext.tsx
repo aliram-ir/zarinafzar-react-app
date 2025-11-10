@@ -33,6 +33,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const refreshAuth = useCallback(async () => {
         const token = localStorage.getItem('accessToken')
 
+        console.log('🔄 refreshAuth called, token:', token ? 'exists' : 'null')
+
         if (!token) {
             setUser(null)
             setIsLoading(false)
@@ -40,11 +42,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         try {
-            // ✅ getCurrentUser از apiHelper استفاده می‌کنه که خودش ApiResponse رو هندل می‌کنه
             const userData = await getCurrentUser()
+            console.log('✅ User data loaded:', userData)
             setUser(userData)
         } catch (error) {
-            console.error('خطا در بارگذاری اطلاعات کاربر:', error)
+            console.error('❌ خطا در بارگذاری اطلاعات کاربر:', error)
             setUser(null)
             localStorage.removeItem('accessToken')
         } finally {
@@ -58,9 +60,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const logout = useCallback(async () => {
         try {
             await logoutService()
+            // ✅ بعد از logout موفق
+            setUser(null)
+            localStorage.removeItem('accessToken')
         } catch (error) {
             console.error('خطا در خروج:', error)
-        } finally {
+            // ✅ حتی با خطا، کاربر رو logout می‌کنیم
             setUser(null)
             localStorage.removeItem('accessToken')
         }
@@ -81,6 +86,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         refreshAuth,
     }
+
+    console.log('🔍 AuthContext value:', {
+        hasUser: !!user,
+        isAuthenticated: !!user,
+        isLoading
+    })
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

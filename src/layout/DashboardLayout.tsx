@@ -1,5 +1,5 @@
 // 📁 src/layout/DashboardLayout.tsx
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import {
     Box,
@@ -17,10 +17,12 @@ import {
     Avatar,
     Menu,
     MenuItem,
+    useMediaQuery,
+    useTheme,
 } from '@mui/material'
 import {
     Menu as MenuIcon,
-    ChevronLeft as ChevronLeftIcon,
+    ChevronRight as ChevronRightIcon,
     Dashboard as DashboardIcon,
     People as PeopleIcon,
     Settings as SettingsIcon,
@@ -49,16 +51,27 @@ const menuItems = [
  * 🏗️ کامپوننت لایوت داشبورد
  */
 const DashboardLayout: React.FC = () => {
+    const theme = useTheme()
     const { mode, toggleTheme } = useThemeContext()
     const { user, logout } = useAuth()
     const navigate = useNavigate()
     const location = useLocation()
 
+    // 📱 تشخیص اندازه صفحه
+    const isDesktop = useMediaQuery(theme.breakpoints.up('md')) // md = 900px به بالا
+
     // 📌 وضعیت باز/بسته بودن Drawer
-    const [drawerOpen, setDrawerOpen] = useState(true)
+    const [drawerOpen, setDrawerOpen] = useState(isDesktop)
 
     // 📌 وضعیت منوی کاربر
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
+
+    /**
+     * 🔄 تنظیم خودکار Drawer بر اساس اندازه صفحه
+     */
+    useEffect(() => {
+        setDrawerOpen(isDesktop)
+    }, [isDesktop])
 
     /**
      * تغییر وضعیت Drawer
@@ -91,7 +104,7 @@ const DashboardLayout: React.FC = () => {
     }
 
     return (
-        <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+        <Box sx={{ display: 'static', minHeight: '100vh' }}>
             {/* 🔝 AppBar بالای صفحه */}
             <AppBar
                 position="fixed"
@@ -100,15 +113,15 @@ const DashboardLayout: React.FC = () => {
                 }}
             >
                 <Toolbar>
-                    {/* دکمه باز/بسته کردن Drawer */}
+                    {/* دکمه باز/بسته کردن Drawer - سمت راست */}
                     <IconButton
                         color="inherit"
                         aria-label="toggle drawer"
                         onClick={toggleDrawer}
-                        edge="start"
+                        edge="end"
                         sx={{ mr: 2 }}
                     >
-                        {drawerOpen ? <ChevronLeftIcon /> : <MenuIcon />}
+                        {drawerOpen ? <ChevronRightIcon /> : <MenuIcon />}
                     </IconButton>
 
                     {/* عنوان */}
@@ -165,22 +178,49 @@ const DashboardLayout: React.FC = () => {
                 </Toolbar>
             </AppBar>
 
-            {/* 📂 Drawer کناری */}
-            <Drawer
-                variant="permanent"
-                open={drawerOpen}
+            {/* 📄 محتوای اصلی */}
+            <Box
+                component="main"
                 sx={{
-                    width: drawerOpen ? DRAWER_WIDTH : 60,
+                    flexGrow: 1,
+                    p: 3,
+                    mt: 8, // فاصله از بالا برای AppBar
+                    mr: {
+                        xs: 0, // در موبایل بدون فاصله
+                        md: drawerOpen ? `${DRAWER_WIDTH}px` : '60px' // در دسکتاپ با فاصله
+                    },
+                    transition: (theme) =>
+                        theme.transitions.create('margin', {
+                            easing: theme.transitions.easing.sharp,
+                            duration: theme.transitions.duration.enteringScreen,
+                        }),
+                }}
+            >
+                <Outlet />
+            </Box>
+
+            {/* 📂 Drawer کناری - سمت راست */}
+            <Drawer
+                variant={isDesktop ? 'permanent' : 'temporary'} // 👈 در موبایل temporary
+                anchor="right"
+                open={drawerOpen}
+                onClose={toggleDrawer} // 👈 برای بستن در حالت موبایل
+                ModalProps={{
+                    keepMounted: true, // بهبود عملکرد در موبایل
+                }}
+                sx={{
+                    width: drawerOpen ? DRAWER_WIDTH : (isDesktop ? 60 : 0),
                     flexShrink: 0,
                     whiteSpace: 'nowrap',
                     boxSizing: 'border-box',
+                    display: { xs: 'block', md: 'block' },
                     transition: (theme) =>
                         theme.transitions.create('width', {
                             easing: theme.transitions.easing.sharp,
                             duration: theme.transitions.duration.enteringScreen,
                         }),
                     '& .MuiDrawer-paper': {
-                        width: drawerOpen ? DRAWER_WIDTH : 60,
+                        width: drawerOpen ? DRAWER_WIDTH : (isDesktop ? 60 : 0),
                         transition: (theme) =>
                             theme.transitions.create('width', {
                                 easing: theme.transitions.easing.sharp,
@@ -226,40 +266,42 @@ const DashboardLayout: React.FC = () => {
                         <ListItem key={item.text} disablePadding>
                             <ListItemButton
                                 selected={location.pathname === item.path}
-                                onClick={() => navigate(item.path)}
+                                onClick={() => {
+                                    navigate(item.path)
+                                    // 👈 در موبایل بعد از کلیک، منو بسته بشه
+                                    if (!isDesktop) {
+                                        setDrawerOpen(false)
+                                    }
+                                }}
                                 sx={{
                                     minHeight: 48,
-                                    justifyContent: drawerOpen ? 'initial' : 'center',
+                                    flexDirection: 'row-reverse', // 👈 راست‌چین کردن آیتم‌ها
+                                    justifyContent: drawerOpen ? 'flex-start' : 'center',
                                     px: 2.5,
                                 }}
                             >
                                 <ListItemIcon
                                     sx={{
                                         minWidth: 0,
-                                        mr: drawerOpen ? 3 : 'auto',
+                                        mr: drawerOpen ? 3 : 'auto', // 👈 تغییر از ml به mr
                                         justifyContent: 'center',
                                     }}
                                 >
                                     {item.icon}
                                 </ListItemIcon>
-                                {drawerOpen && <ListItemText primary={item.text} />}
+                                {drawerOpen && (
+                                    <ListItemText
+                                        primary={item.text}
+                                        sx={{
+                                            textAlign: 'right', // 👈 متن راست‌چین
+                                        }}
+                                    />
+                                )}
                             </ListItemButton>
                         </ListItem>
                     ))}
                 </List>
             </Drawer>
-
-            {/* 📄 محتوای اصلی */}
-            <Box
-                component="main"
-                sx={{
-                    flexGrow: 1,
-                    p: 3,
-                    mt: 8, // فاصله از بالا برای AppBar
-                }}
-            >
-                <Outlet />
-            </Box>
         </Box>
     )
 }
