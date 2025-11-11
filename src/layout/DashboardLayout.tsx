@@ -29,9 +29,11 @@ import {
     Brightness4 as DarkIcon,
     Brightness7 as LightIcon,
     AccountCircle,
+    AdminPanelSettings as AdminPanelSettingsIcon,
 } from '@mui/icons-material'
 import { useThemeContext } from '@/hooks/useThemeMode'
 import { useAuth } from '@/hooks/useAuth'
+
 
 /**
  * 🎨 تنظیمات عرض Drawer
@@ -45,6 +47,11 @@ const menuItems = [
     { text: 'داشبورد', icon: <DashboardIcon />, path: '/dashboard' },
     { text: 'لیست کاربران', icon: <PeopleIcon />, path: '/dashboard/users' },
     { text: 'تنظیمات', icon: <SettingsIcon />, path: '/dashboard/settings' },
+    {
+        text: 'مدیریت نقش‌ها',
+        icon: <AdminPanelSettingsIcon />,
+        path: '/dashboard/roles',
+    },
 ]
 
 /**

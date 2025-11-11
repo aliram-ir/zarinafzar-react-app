@@ -5,15 +5,18 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import { ThemeModeProvider } from '@/providers/ThemeModeProvider'
 import ToastProvider from '@/components/ToastProvider'
 import AppRoutes from '@/routes/AppRoutes'
+import { ConfirmDialogProvider } from '@/providers/ConfirmDialogContext'
 
 const App: React.FC = () => {
   return (
     <BrowserRouter>
       <ThemeModeProvider>
         <ToastProvider>
-          <AuthProvider>
-            <AppRoutes />
-          </AuthProvider>
+          <ConfirmDialogProvider>
+            <AuthProvider>
+              <AppRoutes />
+            </AuthProvider>
+          </ConfirmDialogProvider>
         </ToastProvider>
       </ThemeModeProvider>
     </BrowserRouter>
