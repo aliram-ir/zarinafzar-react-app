@@ -1,5 +1,11 @@
 // 📁 src/api/services/authService.ts
+// =====================================================
+// ✅ نسخه‌ی نهایی "Hybrid Refresh Token" با پشتیبانی از
+//    Cookie + Body + Auto Fallback و پایداری transportMode
+// =====================================================
+
 import { getResult, postResult } from '../apiHelper'
+import type { UserDto } from '@/types/userDto'
 import type {
     SendOtpRequest,
     SendOtpResponse,
@@ -8,67 +14,143 @@ import type {
     CompleteRegistrationRequest,
     CompleteRegistrationResponse,
 } from '@/types/auth'
-import type { UserDto } from '@/types/userDto'
+import type { AxiosError } from 'axios'
+import type { ApiResponse } from '@/types/apiResponse'
 
-/**
- * مدل درخواست ورود
- */
-export interface LoginRequest {
-    phoneNumber: string
-    password: string
-}
+// 🔹 بازیابی حالت انتقال از storage (پایدار بین refreshهای صفحه)
+let transportMode: 'cookie' | 'body' =
+    (localStorage.getItem('transport_mode') as 'cookie' | 'body') || 'cookie'
 
-/**
- * مدل پاسخ احراز هویت
- */
+// ---- اینترفیس نتیجه لاگین ----
 export interface AuthResult {
     accessToken: string
     expiresAt: string
     userInfo: UserDto
+    refreshToken?: string
 }
 
-/**
- * 🔐 ورود با شماره تلفن و رمز عبور
- */
-export const login = (phoneNumber: string, password: string) =>
-    postResult<AuthResult>('/Auth/login', { phoneNumber, password })
+// -----------------------------------------------------
+// 🔐 ورود کاربر
+// -----------------------------------------------------
+export const login = async (phoneNumber: string, password: string) => {
+    const res = await postResult<{ data: AuthResult; transport?: string }>(
+        '/Auth/login',
+        { phoneNumber, password }
+    )
 
-/**
- * 👤 دریافت اطلاعات کاربر جاری
- */
+    // بروزرسانی transportMode بر اساس پاسخ سرور
+    transportMode = res.transport?.toLowerCase() === 'body' ? 'body' : 'cookie'
+    localStorage.setItem('transport_mode', transportMode)
+
+    // 💡 تشخیص خودکار عدم پذیرش کوکی توسط مرورگر
+    try {
+        document.cookie = 'cookie_test=1'
+        const cookieEnabled = document.cookie.includes('cookie_test=')
+        if (!cookieEnabled && transportMode === 'cookie') {
+            console.warn('🚫 Cookies disabled, switching to body transport.')
+            transportMode = 'body'
+            localStorage.setItem('transport_mode', 'body')
+        }
+    } catch {
+        transportMode = 'body'
+        localStorage.setItem('transport_mode', 'body')
+    }
+
+    // در حالت بدنه توکن را ذخیره کن
+    if (transportMode === 'body' && res.data?.refreshToken)
+        localStorage.setItem('refresh_token', res.data.refreshToken)
+
+    return res.data
+}
+
+// -----------------------------------------------------
+// 🔄 رفرش توکن با هماهنگی کامل بک‌اند
+// -----------------------------------------------------
+export const refreshAccessToken = async (): Promise<AuthResult | null> => {
+    const refreshToken = localStorage.getItem('refresh_token')
+
+    try {
+        if (transportMode === 'cookie')
+            return await postResult<AuthResult>('/Auth/refresh-token', {})
+
+        if (transportMode === 'body') {
+            if (!refreshToken) {
+                console.warn('⚠️ No refresh token found locally.')
+                return null
+            }
+            return await postResult<AuthResult>('/Auth/refresh-token', { refreshToken })
+        }
+    } catch (error: unknown) {
+        const axiosError = error as AxiosError<ApiResponse<AuthResult>>
+
+        if (axiosError?.response?.status === 401 && transportMode === 'cookie') {
+            console.warn('⚠️ Cookie mode refresh failed, fallback to body mode.')
+
+            transportMode = 'body'
+            localStorage.setItem('transport_mode', 'body')
+
+            if (refreshToken)
+                return await postResult<AuthResult>('/Auth/refresh-token', { refreshToken })
+        }
+
+        throw error
+    }
+
+    return null
+}
+
+// -----------------------------------------------------
+// 🚪 خروج از حساب (Hybrid)
+// -----------------------------------------------------
+export const logout = async (): Promise<boolean> => {
+    try {
+        if (transportMode === 'body') {
+            const token = localStorage.getItem('refresh_token')
+
+            if (token)
+                await postResult<boolean>('/Auth/logout', { refreshToken: token })
+            else
+                await postResult<boolean>('/Auth/logout', {})
+
+            // پاکسازی اطلاعات client
+            localStorage.removeItem('refresh_token')
+            localStorage.removeItem('transport_mode')
+            transportMode = 'cookie'
+            return true
+        }
+
+        // Cookie mode logout
+        await postResult<boolean>('/Auth/logout', {})
+        localStorage.removeItem('transport_mode')
+        return true
+    } catch (error) {
+        console.error('❌ Logout error:', error)
+        return false
+    }
+}
+
+// -----------------------------------------------------
+// 👤 اطلاعات کاربر جاری
+// -----------------------------------------------------
 export const getCurrentUser = () => getResult<UserDto>('/Auth/current')
 
-/**
- * 🚪 خروج از حساب کاربری
- */
-export const logout = () => postResult<void>('/Auth/logout', {})
-
-/**
- * 🔄 رفرش توکن دسترسی
- */
-export const refreshAccessToken = () =>
-    postResult<AuthResult>('/Auth/refresh-token', {})
-
-/**
- * 📲 ارسال کد OTP
- */
+// -----------------------------------------------------
+// 📲 OTP operations
+// -----------------------------------------------------
 export const sendOtp = (payload: SendOtpRequest) =>
     postResult<SendOtpResponse>('Auth/send-otp', payload)
 
-/**
- * 🔑 تأیید کد OTP
- */
 export const verifyOtp = (payload: VerifyOtpRequest) =>
     postResult<VerifyOtpResponse>('Auth/verify-otp', payload)
 
-/**
- * 🧩 بررسی وجود شماره موبایل
- */
+// -----------------------------------------------------
+// 🧩 بررسی شماره موبایل برای ثبت‌نام
+// -----------------------------------------------------
 export const checkPhoneExist = (phoneNumber: string) =>
     getResult<boolean>('/Auth/IsExist-PhoneNumber', { params: { phoneNumber } })
 
-/**
- * 📝 تکمیل ثبت‌نام
- */
+// -----------------------------------------------------
+// 📝 تکمیل ثبت‌نام
+// -----------------------------------------------------
 export const completeRegistration = (payload: CompleteRegistrationRequest) =>
     postResult<CompleteRegistrationResponse>('Auth/register-user', payload)

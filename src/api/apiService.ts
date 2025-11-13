@@ -5,20 +5,24 @@ import axios, {
     type AxiosResponse,
 } from 'axios'
 import { toast } from 'react-toastify'
+import { env } from '@/config/env'
+import type { ApiResponse } from '@/types/apiResponse'
 
-export interface ApiResponse<T> {
-    success: boolean
-    message: string
-    data: T
-    details?: string | null
-    traceId?: string | null
-}
 
+// ✅ استفاده از تنظیمات
 const api: AxiosInstance = axios.create({
-    baseURL: 'https://localhost:7009/api/',
-    timeout: 30000,
-    withCredentials: true, // ✅ برای ارسال و دریافت کوکی‌ها
+    baseURL: env.apiBaseUrl,
+    timeout: env.apiTimeout,
+    withCredentials: true,
+    headers: {
+        'Content-Type': 'application/json'
+    }
 })
+
+// ✅ لاگ در حالت توسعه
+if (env.isDevelopment) {
+    console.log('🌐 API Base URL:', env.apiBaseUrl)
+}
 
 export function parseServerResponse<T>(response: unknown): ApiResponse<T> {
     if (!response || typeof response !== 'object') {

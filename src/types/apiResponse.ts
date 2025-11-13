@@ -4,4 +4,5 @@ export interface ApiResponse<T> {
     data: T
     details?: string | null
     traceId?: string | null
+    transport?: string | null
 }
