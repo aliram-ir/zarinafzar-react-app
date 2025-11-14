@@ -1,4 +1,5 @@
 // 📁 src/pages/Login.tsx
+
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -6,51 +7,69 @@ import {
     TextField,
     Button,
     Typography,
-    Paper,
     CircularProgress,
 } from '@mui/material'
 import { login } from '@/api/services/authService'
 import { useAuth } from '@/hooks/useAuth'
-import { toast } from 'react-toastify'
 
 const Login: React.FC = () => {
+    const navigate = useNavigate()
+    const { setUser, refreshAuth } = useAuth()
     const [phoneNumber, setPhoneNumber] = useState('')
     const [password, setPassword] = useState('')
     const [isLoading, setIsLoading] = useState(false)
+    const [error, setError] = useState('')
 
-    const { setUser } = useAuth()
-    const navigate = useNavigate()
-
-    /**
-     * هندلر ورود به سیستم
-     */
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault()
-
+    const handleLogin = async () => {
         if (!phoneNumber || !password) {
-            toast.error('لطفاً تمام فیلدها را پر کنید', { rtl: true })
+            setError('لطفاً تمام فیلدها را پر کنید')
             return
         }
 
         setIsLoading(true)
+        setError('')
 
         try {
-            // ✅ login از apiHelper استفاده می‌کنه و خودش ApiResponse رو parse می‌کنه
+            console.log('🔐 Attempting login...')
             const result = await login(phoneNumber, password)
 
-            // ✅ ذخیره AccessToken
-            localStorage.setItem('accessToken', result.accessToken)
+            console.log('✅ Login result received:', result)
 
-            // ✅ ست کردن کاربر در Context
-            setUser(result.userInfo)
+            // ✅ چک کردن وجود result
+            if (!result) {
+                throw new Error('پاسخ سرور نامعتبر است')
+            }
 
-            toast.success('ورود موفقیت‌آمیز بود!', { rtl: true })
+            // ✅ CRITICAL: ذخیره accessToken
+            if (result.accessToken) {
+                localStorage.setItem('accessToken', result.accessToken)
+                console.log('💾 AccessToken saved:', result.accessToken.substring(0, 20) + '...')
+            } else {
+                throw new Error('توکن دسترسی دریافت نشد')
+            }
 
-            // ✅ هدایت به داشبورد بعد از لاگین موفق
-            navigate('/dashboard')
-        } catch (error) {
-            console.error('خطا در ورود:', error)
-            // خطا توسط apiService نمایش داده می‌شود
+            // ✅ ذخیره refreshToken اگر در حالت body باشیم
+            if (result.refreshToken) {
+                localStorage.setItem('refresh_token', result.refreshToken)
+                console.log('💾 RefreshToken saved')
+            }
+
+            // ✅ بروزرسانی اطلاعات کاربر در Context
+            if (result.userInfo) {
+                setUser(result.userInfo)
+                console.log('👤 User info set:', result.userInfo)
+            }
+
+            // ✅ رفرش احراز هویت
+            await refreshAuth()
+
+            console.log('🚀 Redirecting to dashboard...')
+            navigate('/dashboard', { replace: true })
+
+        } catch (err) {
+            console.error('❌ Login error:', err)
+            const errorMessage = err instanceof Error ? err.message : 'خطا در ورود'
+            setError(errorMessage)
         } finally {
             setIsLoading(false)
         }
@@ -58,80 +77,58 @@ const Login: React.FC = () => {
 
     return (
         <Box
-            sx={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                minHeight: '80vh',
-                p: 2,
-            }}
+            display="flex"
+            flexDirection="column"
+            alignItems="center"
+            justifyContent="center"
+            minHeight="100vh"
+            gap={2}
+            p={3}
         >
-            <Paper
-                elevation={3}
-                sx={{
-                    p: 4,
-                    maxWidth: 400,
-                    width: '100%',
-                }}
-            >
-                <Typography variant="h5" component="h1" gutterBottom textAlign="center">
-                    ورود به سیستم
+            <Typography variant="h4">ورود</Typography>
+
+            {error && (
+                <Typography color="error" variant="body2">
+                    {error}
                 </Typography>
+            )}
 
-                <form onSubmit={handleLogin}>
-                    <TextField
-                        fullWidth
-                        label="شماره تلفن"
-                        value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value)}
-                        margin="normal"
-                        dir="ltr"
-                        disabled={isLoading}
-                        placeholder="09123456789"
-                    />
+            <TextField
+                label="شماره موبایل"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                fullWidth
+                sx={{ maxWidth: 400 }}
+                disabled={isLoading}
+            />
 
-                    <TextField
-                        fullWidth
-                        type="password"
-                        label="رمز عبور"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        margin="normal"
-                        dir="ltr"
-                        disabled={isLoading}
-                    />
+            <TextField
+                label="رمز عبور"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                fullWidth
+                sx={{ maxWidth: 400 }}
+                disabled={isLoading}
+            />
 
-                    <Button
-                        fullWidth
-                        type="submit"
-                        variant="contained"
-                        disabled={isLoading}
-                        sx={{ mt: 3 }}
-                    >
-                        {isLoading ? <CircularProgress size={24} /> : 'ورود'}
-                    </Button>
+            <Button
+                variant="contained"
+                onClick={handleLogin}
+                disabled={isLoading}
+                fullWidth
+                sx={{ maxWidth: 400 }}
+            >
+                {isLoading ? <CircularProgress size={24} /> : 'ورود'}
+            </Button>
 
-                    <Button
-                        fullWidth
-                        variant="text"
-                        onClick={() => navigate('/send-otp')}
-                        disabled={isLoading}
-                        sx={{ mt: 2 }}
-                    >
-                        رمز عبور را فراموش کردم
-                    </Button>
-
-                    <Button
-                        fullWidth
-                        variant="text"
-                        onClick={() => navigate('/send-otp')}
-                        disabled={isLoading}
-                        sx={{ mt: 1 }}
-                    >
-                        ثبت‌نام کنید
-                    </Button>
-                </form>
-            </Paper>
+            <Button
+                variant="text"
+                onClick={() => navigate('/send-otp')}
+                disabled={isLoading}
+            >
+                ورود با کد یکبار مصرف
+            </Button>
         </Box>
     )
 }

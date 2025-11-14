@@ -8,8 +8,10 @@ import { toast } from 'react-toastify'
 import { env } from '@/config/env'
 import type { ApiResponse } from '@/types/apiResponse'
 
+// =====================================
+// 🔧 تنظیمات Axios Instance
+// =====================================
 
-// ✅ استفاده از تنظیمات
 const api: AxiosInstance = axios.create({
     baseURL: env.apiBaseUrl,
     timeout: env.apiTimeout,
@@ -19,13 +21,93 @@ const api: AxiosInstance = axios.create({
     }
 })
 
-// ✅ لاگ در حالت توسعه
+// لاگ در حالت توسعه
 if (env.isDevelopment) {
     console.log('🌐 API Base URL:', env.apiBaseUrl)
 }
 
+// =====================================
+// 🛠️ توابع کمکی تجزیه پاسخ
+// =====================================
+
+/**
+ * استخراج یک فیلد از شیء با کلیدهای احتمالی مختلف
+ */
+function extractField<T = unknown>(
+    obj: Record<string, unknown> | null | undefined,
+    keys: string[]
+): T | null {
+    if (!obj) return null
+
+    for (const key of keys) {
+        const value = obj[key]
+        if (value !== undefined && value !== null) {
+            return value as T
+        }
+    }
+
+    return null
+}
+
+/**
+ * پیمایش لایه‌های نِستِد شده پاسخ سرور
+ * @returns آرایه‌ای از لایه‌های یافت شده (حداکثر 4 لایه)
+ */
+function traverseLayers(response: unknown): Array<Record<string, unknown>> {
+    if (!response || typeof response !== 'object') return []
+
+    const layers: Array<Record<string, unknown>> = []
+    let current = response as Record<string, unknown>
+
+    // لایه 1: خود response
+    layers.push(current)
+
+    // لایه 2: data یا خود current
+    current = (current.data ?? current) as Record<string, unknown>
+    if (current && typeof current === 'object') {
+        layers.push(current)
+    }
+
+    // لایه 3: data | value | list
+    const layer3 = extractField<Record<string, unknown>>(current, ['data', 'value', 'list'])
+    if (layer3 && typeof layer3 === 'object') {
+        layers.push(layer3)
+
+        // لایه 4: data | value | list از لایه سوم
+        const layer4 = extractField<Record<string, unknown>>(layer3, ['data', 'value', 'list'])
+        if (layer4 && typeof layer4 === 'object') {
+            layers.push(layer4)
+        }
+    }
+
+    return layers
+}
+
+/**
+ * استخراج مقدار از تمام لایه‌ها با اولویت‌بندی کلیدها
+ */
+function extractFromLayers<T>(
+    layers: Array<Record<string, unknown>>,
+    keys: string[]
+): T | null {
+    for (const layer of layers) {
+        const value = extractField<T>(layer, keys)
+        if (value !== null) return value
+    }
+    return null
+}
+
+// =====================================
+// 🔍 تجزیه پاسخ سرور (بهینه‌شده)
+// =====================================
+
+/**
+ * تجزیه و تحلیل پاسخ سرور با پشتیبانی از ساختارهای مختلف
+ */
 export function parseServerResponse<T>(response: unknown): ApiResponse<T> {
-    if (!response || typeof response !== 'object') {
+    const layers = traverseLayers(response)
+
+    if (layers.length === 0) {
         return {
             success: false,
             message: 'پاسخ نامعتبر از سرور.',
@@ -33,79 +115,44 @@ export function parseServerResponse<T>(response: unknown): ApiResponse<T> {
         }
     }
 
-    const r1 = response as Record<string, unknown>
-    const r2 = (r1.data ?? r1) as Record<string, unknown>
-    const r3 = (r2.data ?? r2.value ?? r2.list ?? null) as Record<string, unknown> | null
-    const r4 = (r3?.data ?? r3?.value ?? r3?.list ?? null) as Record<string, unknown> | null
+    // استخراج success
+    const successKeys = ['success', 'isSuccess', 'IsSuccess']
+    const success = Boolean(extractFromLayers<boolean>(layers, successKeys))
 
-    const success = Boolean(
-        r4?.success ??
-        r3?.success ??
-        r2?.success ??
-        r1.success ??
-        r4?.isSuccess ??
-        r3?.isSuccess ??
-        r2?.isSuccess ??
-        r1.isSuccess ??
-        r4?.IsSuccess ??
-        r3?.IsSuccess ??
-        r2?.IsSuccess ??
-        r1.IsSuccess
-    )
-
+    // استخراج message
+    const messageKeys = ['message', 'Message']
     const message =
-        (r4?.message as string | undefined) ??
-        (r3?.message as string | undefined) ??
-        (r2?.message as string | undefined) ??
-        (r1?.message as string | undefined) ??
-        (r4?.Message as string | undefined) ??
-        (r3?.Message as string | undefined) ??
-        (r2?.Message as string | undefined) ??
-        (r1?.Message as string | undefined) ??
+        extractFromLayers<string>(layers, messageKeys) ??
         (success ? 'عملیات با موفقیت انجام شد.' : 'عملیات با خطا مواجه شد.')
 
-    const candidates = [
-        r4?.value,
-        r3?.value,
-        r2?.value,
-        r4?.Value,
-        r3?.Value,
-        r2?.Value,
-        r4?.data,
-        r3?.data,
-        r2?.data,
-        r4?.Data,
-        r3?.Data,
-        r2?.Data,
-        r4?.list,
-        r3?.list,
-        r2?.list,
-        r1.data,
-        r1.value,
-        r1.Value,
-    ]
+    // استخراج data
+    const dataKeys = ['value', 'Value', 'data', 'Data', 'list']
+    const data = extractFromLayers<T>(layers, dataKeys) ?? (undefined as T)
 
-    const dataCandidate = candidates.find(x => x !== undefined && x !== null) as T | undefined
+    // استخراج details
+    const detailsKeys = ['details', 'Details']
+    const details = extractFromLayers<string>(layers, detailsKeys)
+
+    // استخراج traceId
+    const traceIdKeys = ['traceId', 'TraceId']
+    const traceId = extractFromLayers<string>(layers, traceIdKeys)
 
     return {
         success,
         message,
-        data: (dataCandidate ?? (undefined as T)) as T,
-        details:
-            (r4?.details as string | null) ??
-            (r3?.details as string | null) ??
-            (r2?.details as string | null) ??
-            (r1?.details as string | null) ??
-            null,
-        traceId:
-            (r4?.traceId as string | null) ??
-            (r3?.traceId as string | null) ??
-            (r2?.traceId as string | null) ??
-            (r1?.traceId as string | null) ??
-            null,
+        data: data as T,
+        details,
+        traceId,
     }
 }
 
+// =====================================
+// 🔄 تلاش مجدد درخواست (Retry Logic)
+// =====================================
+
+/**
+ * تلاش مجدد برای درخواست ناموفق
+ */
 async function retryRequest<T>(
     requestFn: () => Promise<AxiosResponse<T>>,
     retries = 3,
@@ -115,15 +162,22 @@ async function retryRequest<T>(
         try {
             return await requestFn()
         } catch {
-            if (i === retries - 1)
+            if (i === retries - 1) {
                 throw new Error('خطا در ارتباط با سرور (تلاش مجدد ناموفق).')
-            await new Promise(r => setTimeout(r, delay * (i + 1)))
+            }
+            await new Promise(resolve => setTimeout(resolve, delay * (i + 1)))
         }
     }
     throw new Error('خطا در ارتباط با سرور.')
 }
 
-// ✅ صف درخواست‌های در حال انتظار برای refresh
+// =====================================
+// 🔐 مدیریت Refresh Token
+// =====================================
+
+/**
+ * صف درخواست‌های معلق در انتظار refresh token
+ */
 let isRefreshing = false
 let failedQueue: Array<{
     resolve: (token: string) => void
@@ -133,18 +187,33 @@ let failedQueue: Array<{
 /**
  * پردازش صف درخواست‌های معلق
  */
-const processQueue = (error: unknown = null, token: string | null = null) => {
-    failedQueue.forEach(prom => {
+function processQueue(error: unknown = null, token: string | null = null): void {
+    failedQueue.forEach(promise => {
         if (error) {
-            prom.reject(error)
+            promise.reject(error)
         } else if (token) {
-            prom.resolve(token)
+            promise.resolve(token)
         }
     })
     failedQueue = []
 }
 
-// ✅ Request Interceptor: اضافه کردن AccessToken به هدرها
+/**
+ * ساخت URL صحیح با مدیریت slash
+ */
+function buildUrl(base: string, path: string): string {
+    const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base
+    const cleanPath = path.startsWith('/') ? path : `/${path}`
+    return `${cleanBase}${cleanPath}`
+}
+
+// =====================================
+// 🎯 Axios Interceptors
+// =====================================
+
+/**
+ * Request Interceptor: اضافه کردن AccessToken به هدرها
+ */
 api.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('accessToken')
@@ -156,7 +225,9 @@ api.interceptors.request.use(
     (error) => Promise.reject(error)
 )
 
-// ✅ Response Interceptor: مدیریت خطا 401 و Refresh Token
+/**
+ * Response Interceptor: مدیریت خطاها و Refresh Token
+ */
 api.interceptors.response.use(
     <T>(response: AxiosResponse<ApiResponse<T>>) => {
         const parsed = parseServerResponse<T>(response.data)
@@ -165,7 +236,7 @@ api.interceptors.response.use(
             data: parsed,
         }
 
-        // ✅ فقط خطاها نمایش داده می‌شوند
+        // نمایش پیام خطا (فقط در صورت عدم موفقیت)
         if (!parsed.success) {
             toast.error(parsed.message, { rtl: true })
         }
@@ -182,10 +253,12 @@ api.interceptors.response.use(
 
         const originalRequest = err.config
 
-        // ✅ مدیریت خطای 401 (Unauthorized)
+        // ====================================
+        // 🔐 مدیریت خطای 401 (Unauthorized)
+        // ====================================
         if (err.response?.status === 401 && originalRequest && !originalRequest._retry) {
+            // اگر در حال refresh هستیم، درخواست را به صف اضافه می‌کنیم
             if (isRefreshing) {
-                // اگر در حال refresh هستیم، درخواست را به صف اضافه می‌کنیم
                 return new Promise((resolve, reject) => {
                     failedQueue.push({ resolve, reject })
                 })
@@ -202,13 +275,37 @@ api.interceptors.response.use(
             isRefreshing = true
 
             try {
+                // 🔹 دریافت transportMode و refreshToken از localStorage
+                const transportMode = localStorage.getItem('transport_mode') || 'cookie'
+                const refreshToken = localStorage.getItem('refresh_token')
+
+                // 🔹 تعیین بدنه درخواست بر اساس حالت انتقال
+                const requestBody = transportMode === 'body' && refreshToken
+                    ? { refreshToken }
+                    : {}
+
+                if (env.isDevelopment) {
+                    console.log('🔄 Refresh Token Request:', {
+                        transportMode,
+                        hasRefreshToken: !!refreshToken,
+                        bodyContent: requestBody
+                    })
+                }
+
+                // ✅ ساخت URL صحیح با مدیریت slash
+                const refreshUrl = buildUrl(env.apiBaseUrl, 'Auth/refresh-token')
+
+                if (env.isDevelopment) {
+                    console.log('🔗 Refresh URL:', refreshUrl)
+                }
+
                 // تلاش برای refresh token
                 const response = await axios.post<ApiResponse<{
                     accessToken: string
                     expiresAt: string
                 }>>(
-                    'https://localhost:7009/api/Auth/refresh-token',
-                    {},
+                    refreshUrl,  // ✅ URL اصلاح شده
+                    requestBody,  // ✅ بدنه درخواست بر اساس transportMode
                     { withCredentials: true }
                 )
 
@@ -221,10 +318,14 @@ api.interceptors.response.use(
                     const newToken = parsed.data.accessToken
                     localStorage.setItem('accessToken', newToken)
 
-                    // ✅ پردازش صف
+                    if (env.isDevelopment) {
+                        console.log('✅ Access Token refreshed successfully')
+                    }
+
+                    // پردازش صف
                     processQueue(null, newToken)
 
-                    // ✅ تلاش مجدد درخواست اصلی
+                    // تلاش مجدد درخواست اصلی
                     if (originalRequest.headers) {
                         originalRequest.headers.Authorization = `Bearer ${newToken}`
                     }
@@ -233,9 +334,14 @@ api.interceptors.response.use(
                     throw new Error('Refresh token failed')
                 }
             } catch (refreshError) {
-                // ✅ در صورت خطا، کاربر را logout کنیم
+                console.error('❌ Refresh Token Failed:', refreshError)
+
+                // در صورت خطا، کاربر را logout می‌کنیم
                 processQueue(refreshError, null)
                 localStorage.removeItem('accessToken')
+                localStorage.removeItem('refresh_token')
+                localStorage.removeItem('transport_mode')
+
                 window.location.href = '/login'
                 return Promise.reject(refreshError)
             } finally {
@@ -243,7 +349,9 @@ api.interceptors.response.use(
             }
         }
 
-        // ✅ مدیریت خطاهای شبکه
+        // ====================================
+        // 🌐 مدیریت خطاهای شبکه
+        // ====================================
         const isNetworkError =
             err.code === 'ERR_NETWORK' ||
             !err.response ||
@@ -260,7 +368,9 @@ api.interceptors.response.use(
             }
         }
 
-        // ✅ مدیریت سایر خطاها
+        // ====================================
+        // ⚠️ مدیریت سایر خطاها
+        // ====================================
         if (err.response) {
             const parsed = parseServerResponse(err.response.data)
             toast.error(parsed.message, { rtl: true })
@@ -271,6 +381,7 @@ api.interceptors.response.use(
             return Promise.resolve(adaptedResponse)
         }
 
+        // خطای پیش‌فرض
         const msg =
             (err.message && err.message.trim()) ||
             'خطای ناشناخته هنگام ارتباط با سرور.'

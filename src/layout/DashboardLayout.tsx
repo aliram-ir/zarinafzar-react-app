@@ -52,6 +52,11 @@ const menuItems = [
         icon: <AdminPanelSettingsIcon />,
         path: '/dashboard/roles',
     },
+    {
+        text: 'مدیریت دسترسی‌ها',
+        icon: <AdminPanelSettingsIcon />,
+        path: '/dashboard/Permissions',
+    },
 ]
 
 /**

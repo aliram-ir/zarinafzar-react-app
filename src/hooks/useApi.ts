@@ -1,8 +1,10 @@
 // 📁 src/hooks/useApi.ts
+
 import { useEffect, useRef, useState, useCallback } from 'react'
 import * as apiHelper from '../api/apiHelper'
 import type { ApiState } from '../types/apiState'
 import { getCache, setCache } from '../utils/localStorageCache'
+import { env } from '@/config/env'
 
 interface UseApiOptions {
     immediate?: boolean
@@ -30,14 +32,29 @@ export function useApi<T>(endpoint: string, options: UseApiOptions = {}) {
 
         try {
             const result = await apiHelper.getResult<T>(cleanEndpoint)
+
             setCache(cacheKey, result)
             setState({ data: result, isLoading: false, error: null })
+
+            // لاگ اضافه برای دیباگ
+            if (env.isDevelopment) {
+                console.log('✅ useApi Final Data:', {
+                    endpoint: cleanEndpoint,
+                    isArray: Array.isArray(result),
+                    dataType: typeof result,
+                    data: result
+                })
+            }
         } catch (err) {
             const message =
                 err instanceof Error && err.message
                     ? err.message
                     : 'خطای ناشناخته هنگام دریافت اطلاعات.'
             setState(prev => ({ ...prev, error: message, isLoading: false }))
+
+            if (env.isDevelopment) {
+                console.error('❌ useApi Error:', err)
+            }
         } finally {
             isFetchingRef.current = false
         }

@@ -16,6 +16,7 @@ import CompleteRegistration from '@/pages/CompleteRegistration'
 import DashboardHome from '@/pages/panel/DashboardHome'
 import UsersList from '@/pages/UsersList'
 import RolesList from '@/pages/panel/RolesList'
+import PermissionsList from '@/pages/panel/PermissionsList'
 
 /**
  * 🛣️ مسیریابی اصلی اپلیکیشن
@@ -69,6 +70,7 @@ const AppRoutes: React.FC = () => {
                 }
             >
                 <Route path="roles" element={<RolesList />} />
+                <Route path="Permissions" element={<PermissionsList />} />
                 <Route index element={<DashboardHome />} />
                 <Route path="users" element={<UsersList />} />
                 <Route path="settings" element={<div>تنظیمات</div>} />

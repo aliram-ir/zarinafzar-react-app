@@ -32,36 +32,71 @@ export interface AuthResult {
 // -----------------------------------------------------
 // 🔐 ورود کاربر
 // -----------------------------------------------------
-export const login = async (phoneNumber: string, password: string) => {
-    const res = await postResult<{ data: AuthResult; transport?: string }>(
-        '/Auth/login',
-        { phoneNumber, password }
-    )
+// 📁 src/api/services/authService.ts
 
-    // بروزرسانی transportMode بر اساس پاسخ سرور
-    transportMode = res.transport?.toLowerCase() === 'body' ? 'body' : 'cookie'
-    localStorage.setItem('transport_mode', transportMode)
+export const login = async (phoneNumber: string, password: string): Promise<AuthResult> => {
+    console.log('📞 Calling login API with:', { phoneNumber })
 
-    // 💡 تشخیص خودکار عدم پذیرش کوکی توسط مرورگر
     try {
-        document.cookie = 'cookie_test=1'
-        const cookieEnabled = document.cookie.includes('cookie_test=')
-        if (!cookieEnabled && transportMode === 'cookie') {
-            console.warn('🚫 Cookies disabled, switching to body transport.')
+        // ✅ postResult مستقیماً AuthResult رو برمیگردونه
+        const result = await postResult<AuthResult>(
+            '/Auth/login',
+            { phoneNumber, password }
+        )
+
+        console.log('📦 Login result:', result)
+
+        // ⚠️ چک کردن وجود accessToken
+        if (!result || !result.accessToken) {
+            console.error('❌ No accessToken in response!')
+            throw new Error('پاسخ سرور فاقد توکن دسترسی است')
+        }
+
+        // بروزرسانی transportMode بر اساس وجود refreshToken در پاسخ
+        if (result.refreshToken) {
+            console.log('🔧 RefreshToken found, using body mode')
+            transportMode = 'body'
+        } else {
+            console.log('🔧 No refreshToken, using cookie mode')
+            transportMode = 'cookie'
+        }
+
+        localStorage.setItem('transport_mode', transportMode)
+
+        // 💡 تشخیص خودکار عدم پذیرش کوکی
+        try {
+            document.cookie = 'cookie_test=1; path=/'
+            const cookieEnabled = document.cookie.includes('cookie_test=')
+            console.log('🍪 Cookie support:', cookieEnabled)
+
+            if (!cookieEnabled && transportMode === 'cookie') {
+                console.warn('🚫 Cookies disabled, forcing body mode')
+                transportMode = 'body'
+                localStorage.setItem('transport_mode', 'body')
+            }
+
+            document.cookie = 'cookie_test=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
+        } catch (error) {
+            console.warn('🚫 Cookie test error:', error)
             transportMode = 'body'
             localStorage.setItem('transport_mode', 'body')
         }
-    } catch {
-        transportMode = 'body'
-        localStorage.setItem('transport_mode', 'body')
+
+        // ✅ در حالت body، refreshToken رو ذخیره کن
+        if (transportMode === 'body' && result.refreshToken) {
+            localStorage.setItem('refresh_token', result.refreshToken)
+            console.log('💾 RefreshToken saved')
+        }
+
+        console.log('✅ Login completed, returning result:', result)
+        return result
+
+    } catch (error) {
+        console.error('❌ Login failed:', error)
+        throw error
     }
-
-    // در حالت بدنه توکن را ذخیره کن
-    if (transportMode === 'body' && res.data?.refreshToken)
-        localStorage.setItem('refresh_token', res.data.refreshToken)
-
-    return res.data
 }
+
 
 // -----------------------------------------------------
 // 🔄 رفرش توکن با هماهنگی کامل بک‌اند
