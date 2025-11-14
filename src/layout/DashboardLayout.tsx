@@ -26,14 +26,14 @@ import {
     Dashboard as DashboardIcon,
     People as PeopleIcon,
     Settings as SettingsIcon,
-    Brightness4 as DarkIcon,
-    Brightness7 as LightIcon,
+    DarkMode as DarkIcon,
+    Sunny as LightIcon,
     AccountCircle,
     AdminPanelSettings as AdminPanelSettingsIcon,
+    Key as KeyIcon,
 } from '@mui/icons-material'
 import { useThemeContext } from '@/hooks/useThemeMode'
 import { useAuth } from '@/hooks/useAuth'
-
 
 /**
  * 🎨 تنظیمات عرض Drawer
@@ -54,7 +54,7 @@ const menuItems = [
     },
     {
         text: 'مدیریت دسترسی‌ها',
-        icon: <AdminPanelSettingsIcon />,
+        icon: <KeyIcon />,
         path: '/dashboard/Permissions',
     },
 ]

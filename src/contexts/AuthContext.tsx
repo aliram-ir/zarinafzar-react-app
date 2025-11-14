@@ -48,7 +48,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch (error) {
             console.error('❌ خطا در بارگذاری اطلاعات کاربر:', error)
             setUser(null)
+            // ✅ پاکسازی کامل در صورت خطا
             localStorage.removeItem('accessToken')
+            localStorage.removeItem('refresh_token')
+            localStorage.removeItem('transport_mode')
         } finally {
             setIsLoading(false)
         }
@@ -60,14 +63,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const logout = useCallback(async () => {
         try {
             await logoutService()
-            // ✅ بعد از logout موفق
-            setUser(null)
-            localStorage.removeItem('accessToken')
+            console.log('✅ Logout service completed')
         } catch (error) {
-            console.error('خطا در خروج:', error)
-            // ✅ حتی با خطا، کاربر رو logout می‌کنیم
+            console.error('❌ خطا در خروج:', error)
+        } finally {
+            // ✅ پاکسازی کامل state و localStorage (همیشه اجرا میشه)
             setUser(null)
             localStorage.removeItem('accessToken')
+            localStorage.removeItem('refresh_token')
+            localStorage.removeItem('transport_mode')
+            console.log('🧹 AuthContext cleaned up')
         }
     }, [])
 

@@ -1,9 +1,4 @@
 // 📁 src/api/services/authService.ts
-// =====================================================
-// ✅ نسخه‌ی نهایی "Hybrid Refresh Token" با پشتیبانی از
-//    Cookie + Body + Auto Fallback و پایداری transportMode
-// =====================================================
-
 import { getResult, postResult } from '../apiHelper'
 import type { UserDto } from '@/types/userDto'
 import type {
@@ -17,7 +12,7 @@ import type {
 import type { AxiosError } from 'axios'
 import type { ApiResponse } from '@/types/apiResponse'
 
-// 🔹 بازیابی حالت انتقال از storage (پایدار بین refreshهای صفحه)
+// 🔹 بازیابی حالت انتقال از storage
 let transportMode: 'cookie' | 'body' =
     (localStorage.getItem('transport_mode') as 'cookie' | 'body') || 'cookie'
 
@@ -27,105 +22,138 @@ export interface AuthResult {
     expiresAt: string
     userInfo: UserDto
     refreshToken?: string
+    sessionId?: string
 }
 
 // -----------------------------------------------------
-// 🔐 ورود کاربر
+// 🔐 ورود کاربر با تشخیص خودکار
 // -----------------------------------------------------
-// 📁 src/api/services/authService.ts
-
 export const login = async (phoneNumber: string, password: string): Promise<AuthResult> => {
-    console.log('📞 Calling login API with:', { phoneNumber })
+    console.log('📞 [LOGIN] Calling login API:', { phoneNumber })
 
     try {
-        // ✅ postResult مستقیماً AuthResult رو برمیگردونه
         const result = await postResult<AuthResult>(
             '/Auth/login',
             { phoneNumber, password }
         )
 
-        console.log('📦 Login result:', result)
+        console.log('📦 [LOGIN] Response received:', {
+            hasAccessToken: !!result?.accessToken,
+            refreshTokenValue: result?.refreshToken,
+            refreshTokenLength: result?.refreshToken?.length || 0
+        })
 
         // ⚠️ چک کردن وجود accessToken
         if (!result || !result.accessToken) {
-            console.error('❌ No accessToken in response!')
+            console.error('❌ [LOGIN] No accessToken in response!')
             throw new Error('پاسخ سرور فاقد توکن دسترسی است')
         }
 
-        // بروزرسانی transportMode بر اساس وجود refreshToken در پاسخ
-        if (result.refreshToken) {
-            console.log('🔧 RefreshToken found, using body mode')
+        // ✅ ذخیره accessToken
+        localStorage.setItem('accessToken', result.accessToken)
+        console.log('💾 [LOGIN] AccessToken saved')
+
+        // 🎯 تشخیص هوشمند: اگه refreshToken پُر بود → Body، خالی بود → Cookie
+        if (result.refreshToken && result.refreshToken.trim().length > 0) {
+            console.log('🔧 [LOGIN] RefreshToken detected → Using BODY mode')
             transportMode = 'body'
-        } else {
-            console.log('🔧 No refreshToken, using cookie mode')
-            transportMode = 'cookie'
-        }
-
-        localStorage.setItem('transport_mode', transportMode)
-
-        // 💡 تشخیص خودکار عدم پذیرش کوکی
-        try {
-            document.cookie = 'cookie_test=1; path=/'
-            const cookieEnabled = document.cookie.includes('cookie_test=')
-            console.log('🍪 Cookie support:', cookieEnabled)
-
-            if (!cookieEnabled && transportMode === 'cookie') {
-                console.warn('🚫 Cookies disabled, forcing body mode')
-                transportMode = 'body'
-                localStorage.setItem('transport_mode', 'body')
-            }
-
-            document.cookie = 'cookie_test=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
-        } catch (error) {
-            console.warn('🚫 Cookie test error:', error)
-            transportMode = 'body'
-            localStorage.setItem('transport_mode', 'body')
-        }
-
-        // ✅ در حالت body، refreshToken رو ذخیره کن
-        if (transportMode === 'body' && result.refreshToken) {
             localStorage.setItem('refresh_token', result.refreshToken)
-            console.log('💾 RefreshToken saved')
+            localStorage.setItem('transport_mode', 'body')
+        } else {
+            console.log('🍪 [LOGIN] No RefreshToken in body → Using COOKIE mode')
+            transportMode = 'cookie'
+            localStorage.setItem('transport_mode', 'cookie')
+            // پاک کردن refresh_token قدیمی در صورت وجود
+            localStorage.removeItem('refresh_token')
         }
 
-        console.log('✅ Login completed, returning result:', result)
+        console.log('✅ [LOGIN] Login completed, mode:', transportMode)
         return result
 
     } catch (error) {
-        console.error('❌ Login failed:', error)
+        console.error('❌ [LOGIN] Login failed:', error)
         throw error
     }
 }
 
-
 // -----------------------------------------------------
-// 🔄 رفرش توکن با هماهنگی کامل بک‌اند
+// 🔄 رفرش توکن (Hybrid Mode)
 // -----------------------------------------------------
 export const refreshAccessToken = async (): Promise<AuthResult | null> => {
+    const currentTransportMode = localStorage.getItem('transport_mode') || 'cookie'
     const refreshToken = localStorage.getItem('refresh_token')
 
-    try {
-        if (transportMode === 'cookie')
-            return await postResult<AuthResult>('/Auth/refresh-token', {})
+    console.log('🔄 [REFRESH] Starting refresh:', {
+        mode: currentTransportMode,
+        hasRefreshToken: !!refreshToken,
+        refreshTokenPreview: refreshToken ? refreshToken.substring(0, 20) + '...' : 'null'
+    })
 
-        if (transportMode === 'body') {
+    try {
+        if (currentTransportMode === 'cookie') {
+            console.log('🍪 [REFRESH] Using cookie mode')
+            const result = await postResult<AuthResult>('/Auth/refresh-token', {})
+
+            if (result?.accessToken) {
+                localStorage.setItem('accessToken', result.accessToken)
+                console.log('✅ [REFRESH] Token refreshed (cookie mode)')
+            }
+
+            return result
+        }
+
+        if (currentTransportMode === 'body') {
             if (!refreshToken) {
-                console.warn('⚠️ No refresh token found locally.')
+                console.error('❌ [REFRESH] Body mode but no refresh token!')
                 return null
             }
-            return await postResult<AuthResult>('/Auth/refresh-token', { refreshToken })
+
+            console.log('📦 [REFRESH] Using body mode')
+            const result = await postResult<AuthResult>('/Auth/refresh-token', { refreshToken })
+
+            if (result?.accessToken) {
+                localStorage.setItem('accessToken', result.accessToken)
+                console.log('✅ [REFRESH] Token refreshed (body mode)')
+
+                // اگه refreshToken جدید اومد، اونو هم آپدیت کن
+                if (result.refreshToken && result.refreshToken.trim().length > 0) {
+                    localStorage.setItem('refresh_token', result.refreshToken)
+                    console.log('🔄 [REFRESH] New refreshToken saved')
+                }
+            }
+
+            return result
         }
     } catch (error: unknown) {
         const axiosError = error as AxiosError<ApiResponse<AuthResult>>
 
-        if (axiosError?.response?.status === 401 && transportMode === 'cookie') {
-            console.warn('⚠️ Cookie mode refresh failed, fallback to body mode.')
+        console.error('❌ [REFRESH] Refresh failed:', {
+            status: axiosError?.response?.status,
+            mode: currentTransportMode
+        })
 
-            transportMode = 'body'
-            localStorage.setItem('transport_mode', 'body')
+        // 🔄 Fallback: اگه cookie mode شکست خورد، body رو امتحان کن
+        if (axiosError?.response?.status === 401 && currentTransportMode === 'cookie') {
+            console.warn('⚠️ [REFRESH] Cookie mode failed, trying body mode fallback')
 
-            if (refreshToken)
-                return await postResult<AuthResult>('/Auth/refresh-token', { refreshToken })
+            if (refreshToken) {
+                try {
+                    transportMode = 'body'
+                    localStorage.setItem('transport_mode', 'body')
+
+                    const result = await postResult<AuthResult>('/Auth/refresh-token', { refreshToken })
+
+                    if (result?.accessToken) {
+                        localStorage.setItem('accessToken', result.accessToken)
+                        console.log('✅ [REFRESH] Fallback successful')
+                    }
+
+                    return result
+                } catch (fallbackError) {
+                    console.error('❌ [REFRESH] Fallback also failed:', fallbackError)
+                    throw fallbackError
+                }
+            }
         }
 
         throw error
@@ -135,31 +163,46 @@ export const refreshAccessToken = async (): Promise<AuthResult | null> => {
 }
 
 // -----------------------------------------------------
-// 🚪 خروج از حساب (Hybrid)
+// 🚪 خروج از حساب
 // -----------------------------------------------------
 export const logout = async (): Promise<boolean> => {
+    const currentTransportMode = localStorage.getItem('transport_mode') || 'cookie'
+
+    console.log('🚪 [LOGOUT] Starting logout, mode:', currentTransportMode)
+
     try {
-        if (transportMode === 'body') {
+        if (currentTransportMode === 'body') {
             const token = localStorage.getItem('refresh_token')
 
-            if (token)
+            if (token) {
                 await postResult<boolean>('/Auth/logout', { refreshToken: token })
-            else
+            } else {
                 await postResult<boolean>('/Auth/logout', {})
+            }
 
             // پاکسازی اطلاعات client
+            localStorage.removeItem('accessToken')
             localStorage.removeItem('refresh_token')
             localStorage.removeItem('transport_mode')
             transportMode = 'cookie'
+            console.log('✅ [LOGOUT] Completed (body mode)')
             return true
         }
 
         // Cookie mode logout
         await postResult<boolean>('/Auth/logout', {})
+        localStorage.removeItem('accessToken')
         localStorage.removeItem('transport_mode')
+        console.log('✅ [LOGOUT] Completed (cookie mode)')
         return true
     } catch (error) {
-        console.error('❌ Logout error:', error)
+        console.error('❌ [LOGOUT] Error:', error)
+
+        // ✅ حتی در صورت خطا، localStorage رو پاک کن
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('refresh_token')
+        localStorage.removeItem('transport_mode')
+
         return false
     }
 }
@@ -179,7 +222,7 @@ export const verifyOtp = (payload: VerifyOtpRequest) =>
     postResult<VerifyOtpResponse>('Auth/verify-otp', payload)
 
 // -----------------------------------------------------
-// 🧩 بررسی شماره موبایل برای ثبت‌نام
+// 🧩 بررسی شماره موبایل
 // -----------------------------------------------------
 export const checkPhoneExist = (phoneNumber: string) =>
     getResult<boolean>('/Auth/IsExist-PhoneNumber', { params: { phoneNumber } })
